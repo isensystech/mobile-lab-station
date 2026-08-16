@@ -480,9 +480,13 @@ Every deferred item slots in without rework, because of the MQTT spine.
 7. **Schema changes via CLI migration**, never the dashboard.
 8. **ASD-STE100 for all knowledge-base and UI prose.** Lint it.
 9. **TimescaleDB on NVMe**, never microSD.
+ACTIVE EXCEPTION, dev cycle only, opened 2026-08-15 by Scott. NVMe not yet in
+hand. Dev and the 20th demo run on microSD. Load is minimal. This exception closes
+when the NVMe arrives. It does not survive into any classroom deployment.
+Mitigation: nightly pg_dump off the card, see §16.
 10. **Correlation is not causation** is permanent on-screen text.
 11. **No `#` comments in bash.**
-
+12. **Flag, never reject — student values only.** An implausible number a student typed saves with quality_flag. Never block the input. This does not extend to driver metadata: an unrecognized source is rejected at insert, loudly, because silently accepting one is how a synthetic row ends up rendering as real.
 ---
 
 ## 16. Known blind spots
@@ -499,7 +503,8 @@ Locked section. An open blind spot is never dropped at purge.
 | Pelicase thermal | nothing yet | that a sealed case in Florida sun stays under thermal throttle. Unmodelled. | **OPEN** — blocks mechanical |
 | Power budget | nothing yet | that a field session runs to completion. Unmodelled. | **OPEN** — blocks BOM |
 | Demo schedule | nothing yet | that a divergent storm occurs before the pitch date. Unbounded wait, no engineering fix. | **OPEN** — see `MobileLab-Demo-Story.md` |
-
+Gate / claim	This proves	This does not prove	Status
+Storage on microSD	the stack runs and the demo works	that the card survives sustained write load. Postgres write amplification kills SD cards. Zero endurance evidence.	OPEN — exception, closes on NVMe arrival
 ---
 
 ## 17. Negative tests, standing rule

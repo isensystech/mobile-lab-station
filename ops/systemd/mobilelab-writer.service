@@ -1,0 +1,31 @@
+[Unit]
+Description=Mobile Lab Station MQTT writer
+Documentation=file://__REPO_ROOT__/services/README.md
+After=network-online.target postgresql.service mosquitto.service
+Wants=postgresql.service mosquitto.service
+
+[Service]
+Type=simple
+User=mobilelab
+Group=mobilelab
+WorkingDirectory=__REPO_ROOT__/services
+EnvironmentFile=__REPO_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__REPO_ROOT__/.venv/bin/python -m mobilelab.writer
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mobilelab-writer
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

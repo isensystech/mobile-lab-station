@@ -1,0 +1,12 @@
+[Unit]
+Description=Mobile Lab Station nightly PostgreSQL dump
+Documentation=file://__REPO_ROOT__/ops/README.md
+Requires=postgresql.service
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=__REPO_ROOT__/ops/backup/mobilelab-pg-backup.sh
+User=root
+Nice=10
+IOSchedulingClass=idle

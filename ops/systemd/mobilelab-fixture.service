@@ -1,0 +1,28 @@
+[Unit]
+Description=Mobile Lab Station synthetic fixture, one run
+Documentation=file://__REPO_ROOT__/services/README.md
+After=network-online.target postgresql.service mosquitto.service
+Wants=postgresql.service mosquitto.service
+
+[Service]
+Type=oneshot
+User=mobilelab
+Group=mobilelab
+WorkingDirectory=__REPO_ROOT__/services
+EnvironmentFile=__REPO_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__REPO_ROOT__/.venv/bin/python -m mobilelab.fixture
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mobilelab-fixture
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+; This unit has no [Install] section on purpose.
+; A fixture must never start at boot. "systemctl enable mobilelab-fixture"
+; fails, and that is the wanted behaviour. Start it by hand only:
+;   sudo systemctl start mobilelab-fixture
