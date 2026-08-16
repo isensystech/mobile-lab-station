@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=planetwerx
+Description=PlanetWerx Mobile Lab Station boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/planetwerx
+ScriptFile=/usr/share/plymouth/themes/planetwerx/planetwerx.script

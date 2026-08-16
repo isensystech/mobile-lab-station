@@ -4,6 +4,7 @@ set -uo pipefail
 PROFILE="${HOME}/.config/mobilelab-kiosk"
 URL="${MOBILELAB_KIOSK_URL:-http://localhost:8000/}"
 WAIT_SECONDS="${MOBILELAB_KIOSK_WAIT:-60}"
+SPLASH="${MOBILELAB_SPLASH:-/usr/share/plymouth/themes/planetwerx/splash.png}"
 
 log() {
   echo "kiosk: $1"
@@ -61,6 +62,22 @@ drop_cache() {
 drop_cache
 
 wait_for_wayland || exit 1
+
+start_background() {
+  if [ ! -f "${SPLASH}" ]; then
+    log "no splash image at ${SPLASH}, the compositor background stays plain"
+    return 0
+  fi
+  if ! command -v swaybg > /dev/null 2>&1; then
+    log "swaybg is absent, the compositor background stays plain"
+    return 0
+  fi
+  pkill -x swaybg > /dev/null 2>&1
+  swaybg -m fill -i "${SPLASH}" > /dev/null 2>&1 &
+  log "the splash sits behind the kiosk, so a restart shows branding not grey"
+}
+
+start_background
 wait_for_api
 clear_crash_flags
 
@@ -83,6 +100,7 @@ exec chromium \
   --disable-breakpad \
   --disable-sync \
   --password-store=basic \
+  --default-background-color=052A30 \
   --disable-pinch \
   --overscroll-history-navigation=0 \
   --disable-translate \
