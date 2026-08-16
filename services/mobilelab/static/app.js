@@ -27,6 +27,7 @@ import {
   correlationAtStep,
   estimateLag,
   needsSimulatedBanner,
+  pearson,
   stepMillis,
   strengthWord,
 } from "/static/chart-core.js";
@@ -426,6 +427,27 @@ function renderChart() {
     hidden: Boolean(set.hidden),
   }));
   document.body.dataset.chartConfig = JSON.stringify(config);
+
+  /*
+   * Measure the lines as DRAWN, at no further lag.
+   *
+   * The caption reports a correlation it computes from the payload. This reads
+   * the shifted values that actually reached the canvas and correlates them
+   * point against point. When the slider sits at the measured delay the two
+   * numbers must agree, because the lines are then on top of each other. If the
+   * shift ran the wrong way, this number stays weak while the caption claims
+   * strong, and that disagreement is the fault made visible.
+   */
+  const drawnResponse = datasets[0].data.map((point) => point.y);
+  datasets.forEach((set, index) => {
+    if (index === 0) return;
+    const drawn = set.data.map((point) => point.y);
+    const { r } = pearson(
+      drawn.map((v) => (v === null ? NaN : v)),
+      drawnResponse.map((v) => (v === null ? NaN : v))
+    );
+    document.body.dataset[`${payload.series[index].key}AlignR`] = r.toFixed(3);
+  });
   document.body.dataset.responseFingerprint = fingerprint(state.chart, 0);
   document.body.dataset.visible = payload.series
     .filter((series) => !state.hidden[series.key])

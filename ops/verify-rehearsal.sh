@@ -274,6 +274,7 @@ G6_NOAA="$(attr s1-r "${WORK}/all.html")"
 G6_GAUGE="$(attr s2-r "${WORK}/all.html")"
 G6_NOAA_W="$(attr s1-strength "${WORK}/all.html")"
 G6_GAUGE_W="$(attr s2-strength "${WORK}/all.html")"
+G6_GAUGE_LAG="$(attr s2-lag-hours "${WORK}/all.html")"
 echo "reported pairs = ${G6_PAIRS}"
 echo "  NOAA       against Salinity: r = ${G6_NOAA}, ${G6_NOAA_W}"
 echo "  Rain Gauge against Salinity: r = ${G6_GAUGE}, ${G6_GAUGE_W}"
@@ -287,15 +288,39 @@ runuser -u mobilelab -- env PYTHONPATH="${REPO_ROOT}/services" "${VENV_PY}" \
 echo
 echo "--- the permanent caption, rule 10 ---"
 grep -oE 'CORRELATION IS NOT CAUSATION[^<]*' "${WORK}/all.html" | head -1 | sed 's/^/  /'
+echo
+echo "--- the slider must MOVE the lines onto each other, not apart ---"
+echo "  The caption reports a correlation from the data. This reads the points"
+echo "  as drawn, after the shift, and correlates them where they sit. At the"
+echo "  measured delay the two numbers must agree, because the lines are then"
+echo "  on top of each other."
+G6_LAG_ROUND="$(python3 -c "print(int(round(float('${G6_GAUGE_LAG:-6}' or 6))))" 2> /dev/null || echo 6)"
+for s in 0 "${G6_LAG_ROUND}"; do
+  render "http://127.0.0.1:${API_PORT}/?hours=${WINDOW_HOURS}&autoshift=${s}" > "${WORK}/shift${s}.html"
+  printf "  shift %-3s  reported r = %-8s  drawn r = %s\n" \
+    "${s}" "$(attr s2-r "${WORK}/shift${s}.html")" "$(attr s2-align-r "${WORK}/shift${s}.html")"
+done
+ALIGN_AT_LAG="$(attr s2-align-r "${WORK}/shift${G6_LAG_ROUND}.html")"
+ALIGN_AT_ZERO="$(attr s2-align-r "${WORK}/shift0.html")"
+G6_ALIGNED="$(python3 -c "
+reported = abs(float('${G6_GAUGE}' or 0))
+drawn = abs(float('${ALIGN_AT_LAG}' or 0))
+flat = abs(float('${ALIGN_AT_ZERO}' or 0))
+print('yes' if abs(reported - drawn) < 0.05 and flat < 0.4 else 'no')
+")"
+echo "  the drawn lines agree with the reported number at the measured delay = ${G6_ALIGNED}"
+echo "  A shift that ran the wrong way would leave the drawn number weak here."
+
 G6_OK="$(python3 -c "
 noaa = abs(float('${G6_NOAA}' or 0))
 gauge = abs(float('${G6_GAUGE}' or 0))
 print('yes' if noaa < 0.4 and gauge >= 0.7 else 'no')
 ")"
 echo "NOAA weak and gauge strong = ${G6_OK}"
-if [ "${G6_OK}" = "yes" ] && [ "${G6_NOAA_W}" = "weak" ] && [ "${G6_GAUGE_W}" = "strong" ]; then
+if [ "${G6_OK}" = "yes" ] && [ "${G6_NOAA_W}" = "weak" ] && [ "${G6_GAUGE_W}" = "strong" ] \
+   && [ "${G6_ALIGNED}" = "yes" ]; then
   gate_result pass \
-    "Each rainfall series gets its own correlation against salinity, labelled by its source, each showing r. The local gauge is strong at r = ${G6_GAUGE}. The cell average is weak at r = ${G6_NOAA}. Both come from the maximum correlation sweep, not from comparing peaks. The gap between those two numbers is the lesson." \
+    "Each rainfall series gets its own correlation against salinity, labelled by its source, each showing r. The local gauge is strong at r = ${G6_GAUGE}. The cell average is weak at r = ${G6_NOAA}. Both come from the maximum correlation sweep, not from comparing peaks. The slider also moves the lines the way the caption says: at the measured delay the points as DRAWN correlate at ${ALIGN_AT_LAG}, against ${ALIGN_AT_ZERO} at no shift." \
     "That the gap means what the lesson says it means. The weak number is weak because the generator built a smooth regional wave that cannot track a short storm. It is a designed contrast, not a measured one, and no real public record has been compared with a real gauge here."
 else
   gate_result fail "nothing" "nothing"

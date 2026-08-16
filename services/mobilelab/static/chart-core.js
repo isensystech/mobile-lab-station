@@ -229,11 +229,25 @@ export function normalize(values) {
   return values.map((value) => (Number.isFinite(value) ? (value - low) / (high - low) : null));
 }
 
+/*
+ * Move a series along the time axis by whole steps.
+ *
+ * A POSITIVE shift moves the series LATER, to the right.
+ *
+ * This has to agree with correlationAtStep, which reads a positive step as
+ * "the response follows the driver by this many steps". So a measured delay of
+ * six hours means the salinity dip arrives six hours after the rain, and
+ * lining them up means carrying the rain forward onto the dip.
+ *
+ * It used to read values[i + steps], which carried the rain BACKWARD instead.
+ * Pressing "Measured delay" then set +6 and moved the lines further apart, so
+ * the chart contradicted its own caption.
+ */
 export function shiftValues(values, steps) {
   if (!steps) return values.slice();
   const out = new Array(values.length).fill(null);
   for (let i = 0; i < values.length; i += 1) {
-    const from = i + steps;
+    const from = i - steps;
     if (from >= 0 && from < values.length) out[i] = values[from];
   }
   return out;
