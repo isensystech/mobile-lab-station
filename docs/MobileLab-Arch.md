@@ -78,6 +78,24 @@ with Supabase — both Postgres, so schema, queries, and the offload path share 
 model. Hypertables for `readings`. Continuous aggregates for 1-minute and 1-hour rollups,
 so the touchscreen hits materialized views and not raw scans.
 
+**[LOCKED] Native packages under systemd. No Docker.** Mosquitto, PostgreSQL, and the
+Python services install as Debian packages and run as systemd units. The box has one job.
+A container layer does not help it do that job, and it adds a runtime the shipping model
+does not need.
+
+**[LOCKED] TimescaleDB comes from the Timescale packagecloud repository.** It does not
+come from Debian.
+
+Debian trixie contains `postgresql-17-timescaledb`. Do not use it. That package carries
+`+dfsg` in its version, and its own description says it holds the Apache licensed edition.
+The Apache edition has no continuous aggregates. This section requires them, so the Debian
+package cannot serve the station.
+
+> **RISK, and it is new.** The classroom image now depends on a third-party repository.
+> Timescale controls that repository. If Timescale drops the Debian build, or the
+> repository goes away, nobody can rebuild the image from Debian alone. Mirror the
+> packages locally before the first classroom build.
+
 **[LOCKED] Mosquitto (MQTT)** as the spine. Topics of the form
 `station/lab01/soil/moisture`. Producers and consumers stay decoupled. This is the reason
 the suite can grow without downstream churn.
@@ -91,13 +109,14 @@ Common record shape:
 ```
 
 **[LOCKED] Custom kiosk UI.** Chromium in kiosk mode on the ROADOM 10.1", serving a
-local web app off the Pi. A local API server (FastAPI or Node) provides history over REST
-and live tiles over a websocket.
+local web app off the Pi. A FastAPI local API server provides history over REST and live
+tiles over a websocket. See §18, decision 2.
 
 **[LOCKED] Charting library on the kiosk.** Do not reuse the firmware portal SVG renderer
 (`parseCsv`, `miniChart`, `drawCharts`). That renderer is correct for 240×320 tiles on a
 dive screen. It fights back on a 10.1" touchscreen doing scatter plots and lag sliders.
-The device keeps its hand-rolled SVG. The kiosk uses a library.
+The device keeps its hand-rolled SVG. The kiosk uses Chart.js 4.4.7. The repository holds
+a copy, so the chart draws with no internet. See §18, decision 3.
 
 ---
 
@@ -162,6 +181,69 @@ Field rationale:
 | `value_raw` + `unit_raw` | they will enter °F; store what they typed and the canonical conversion |
 | `quality_flag` | plausible, implausible, or teacher-verified |
 | `ref_distance_m` | comparing a gauge to a grid cell 12 km away is a different claim than one on top of it |
+
+### Two quality flags, not one **[LOCKED]**
+
+`observations.quality_flag` and `readings.quality_flag` both exist. They answer different
+questions, so the station needs both.
+
+| Column | The question it answers | Migration |
+|---|---|---|
+| `observations.quality_flag` | Is this whole batch under review? | 0005 |
+| `readings.quality_flag` | Is this one number implausible? | 0007 |
+
+**A batch flag cannot mark one bad metric among eight.** A student records eight metrics
+at one site. Seven numbers are good. The pH reads 700. The batch flag cannot say which
+number is wrong, so the row carries its own flag.
+
+Both columns take `plausible`, `implausible`, or `verified`. Neither column blocks a save.
+Hard rule 1 and hard rule 12 both stand.
+
+### Provenance
+
+```sql
+alter table public.readings
+  add column provenance jsonb;   -- migration 0010
+```
+
+A generator writes here what made the row: the seed, the parameters, and the generator
+version. A measurement leaves the column empty.
+
+This column satisfies the §5 requirement that derived rows store what they came from. A
+person can rebuild the exact series from any one row, months later. A row with a synthetic
+source and an empty `provenance` is a defect.
+
+### The sources registry **[LOCKED]**
+
+```sql
+create table public.sources (          -- migration 0003
+  source      text primary key,
+  kind        text not null,           -- measured | manual | synthetic | reconstructed | public
+  is_real     boolean not null,
+  render_hint text not null,           -- solid | dashed
+  description text not null
+);
+
+alter table public.readings
+  add constraint readings_source_fkey
+  foreign key (source) references public.sources(source);
+```
+
+`readings.source` is a foreign key to this table. A source that is not in the table cannot
+enter the database. A driver with a typo in its source name then fails at the write,
+loudly, instead of failing silently on a chart six months later.
+
+| Column | What it does |
+|---|---|
+| `is_real` | True when a person or an instrument measured the value. False for a fixture. |
+| `render_hint` | How a renderer must draw the series. `solid` or `dashed`. |
+
+**`render_hint` is the contract. Every renderer binds to it.** A renderer must not compare
+source names against a list held in its own code. That list rots as soon as somebody adds
+a source. Add a source with a migration, and every renderer follows without a code change.
+
+Free text cannot enforce §5, because a typo makes a new and silent source value. This
+table makes the rule structural.
 
 ### Hard rule: flag, never reject
 
@@ -271,6 +353,22 @@ Three linked views on one screen:
 the correlations students will actually find, and both are lagged. A zero-lag view shows
 them nothing, and they will conclude the tool is broken.
 
+**[LOCKED] Estimate the lag by sweeping for the strongest correlation. Do not compare
+peaks.**
+
+Slide one series against the other, one step at a time. Keep the shift where the
+correlation is strongest.
+
+Peak to peak looks easier, and it is wrong. Rain keeps falling after its own peak, so the
+water keeps getting fresher after it. The deepest dip therefore arrives later than the
+mechanism. On the seeded fixture, peak to peak answers 7 hours where the generator used 6.
+The sweep answers 6.
+
+**The caption says "about", and that word is load bearing.** The recovered delay moves
+with the sample rate. The same fixture returns 6.0 hours at hourly samples, and about 6.8
+hours at 10 minute samples, because rain spread across an hour widens the response. The
+number is an estimate. The caption must not pretend otherwise.
+
 **Hard rule.** "Correlation is not causation" appears as a permanent caption on the
 screen, not a tooltip. If the tool teaches data literacy, it teaches the caveat too.
 
@@ -317,14 +415,26 @@ Inherited, plus the items the Pelicase and the student user force.
 - **Storage: NVMe HAT. HARD RULE.** TimescaleDB on the microSD will die.
 - **Power protection: UPS HAT.** Students will unplug it. Add a graceful shutdown button
   in the UI and on GPIO.
-- **Clock:** Pi 5 onboard RTC with the battery header populated. GPS provides time
-  outdoors. Indoors with no fix, a timestamp is still required.
+- **Clock: Pi 5 onboard RTC with the battery fitted. REQUIRED HARDWARE, NOT OPTIONAL.**
+  **The battery is not fitted today.** A power cut therefore sets the clock to 1970.
+  Measured on 2026-08-15: after Scott cut the power, the kernel logged
+  `setting system clock to 1970-01-01T00:00:09 UTC`. NTP repaired the clock, but only
+  because a network was present. A field session has no network and may have no GPS fix.
+  Every reading after a power cut would then carry a 1970 timestamp, and land 56 years in
+  the past. Hard rule 13 throws those readings away, so the station records nothing rather
+  than something wrong. GPS provides time outdoors. Indoors with no fix, a timestamp is
+  still required. **Fit the battery.**
 - **GPS:** USB or UART/I2C HAT, via `gpsd`
 - **Wired sensor bus:** USB-RS485 dongle, Modbus RTU **[LOCKED]** (V2+)
 - **Buoy link:** LoRa HAT, US915, point-to-point **[LOCKED]** (V3+)
 - **Uplink radio:** OPEN. Ethernet and/or USB WiFi and/or cellular. See §10.
 - **No onboard ADC. HARD RULE: buy Modbus, SDI-12, or digital sensor variants, never
   analog.** An ADC HAT for two sensors is a non-goal.
+
+**Software deployment: native Debian packages under systemd. No Docker.** See §2.
+TimescaleDB comes from the Timescale packagecloud repository, because the Debian package
+holds the Apache edition and has no continuous aggregates. The classroom image therefore
+depends on a third-party repository.
 
 **Unmodelled and it will bite:**
 
@@ -450,12 +560,18 @@ sensors. If so, "integration" is the manual entry card, which ships in V1 anyway
 
 **IN:** kiosk UI · local API · TimescaleDB · manual entry with `observation_id` grouping ·
 free-text observer · `gpsd` · RTC · WQL bridge ingest · two-metric overlay chart ·
-logger threshold breach display · two static markdown articles · CSV export ·
-seeded synthetic test fixture.
+**lag slider with an auto-caption** · logger threshold breach display ·
+two static markdown articles · CSV export · seeded synthetic test fixture.
 
 **OUT:** Modbus drivers · LoRa buoy · noise · creek · Apera reverse engineering ·
-cloud offload · NOAA lookup · scatter and lag correlation · roster management ·
+cloud offload · NOAA lookup · **scatter plot** · roster management ·
 threshold configuration UI · Jupyter · Kiwix · deep templated tutorials.
+
+> **CORRECTION, 2026-08-15.** An earlier version of this section listed "scatter and lag
+> correlation" as OUT. That contradicted §7, which makes the lag slider required, not
+> optional. The correct reading is: **the lag slider is IN, and the scatter plot is OUT.**
+> §7 wins. The overlay chart carries the lag slider and the plain-language caption. The
+> scatter view, the fitted line, and the printed r stay OUT of V1.
 
 **Rationale for the cut.** V1's job is to win the decision to build more. The audience is
 the buyer, not the student. A demo needs a moment where someone says "I see it." Ingest
@@ -487,6 +603,13 @@ Mitigation: nightly pg_dump off the card, see §16.
 10. **Correlation is not causation** is permanent on-screen text.
 11. **No `#` comments in bash.**
 12. **Flag, never reject — student values only.** An implausible number a student typed saves with quality_flag. Never block the input. This does not extend to driver metadata: an unrecognized source is rejected at insert, loudly, because silently accepting one is how a synthetic row ends up rendering as real.
+13. **Reject an implausible clock.** Refuse any reading with a timestamp before
+    2026-01-01, or more than 24 hours in the future. Log the payload at error with
+    `reason=implausible_clock`. Count the rejection. **A missing reading beats a corrupt
+    one.** The RTC battery is not fitted, so a power cut sets the clock to 1970 and every
+    later reading is silently wrong. This rule discards the timestamp. It does not repair
+    the clock. See §9.
+
 ---
 
 ## 16. Known blind spots
@@ -499,12 +622,17 @@ Locked section. An open blind spot is never dropped at purge.
 | MQTT spine absorbs future drivers | manual entry and Modbus share a record shape | that Modbus timing, error, and retry semantics fit the same driver contract. No Modbus driver has been written. | **OPEN** — closes when driver #1 lands |
 | `readings` absorbs public data | schema needs no migration for a NOAA row | that fetch, cache, and offline behaviour are solved. They are not designed. | **OPEN** — closes in V2 |
 | `observation_id` grouping | manual batches are modelled correctly | that the free-text observer survives contact with a classroom. It may collide, be misspelled, or be left blank. | **OPEN** — closes with V2 roster |
-| Source labelling rule | the data layer distinguishes synthetic | that the **UI** honours it. This is a UI requirement, not a schema one, and UI rules rot. | **OPEN** — needs a negative test, §17 |
+| Source labelling rule | the data layer distinguishes synthetic, **and the overlay chart honours it**. 30 headless Chromium checks pass against `chart-core.js`, the same file the live page loads. They include the fail-closed cases: a missing, null, empty, wrongly cased, or numeric `render_hint` draws dashed and raises the banner. A series that claims `is_real: true` with a broken hint still draws as not real. A control case proves a properly labelled real series still draws solid. | that **any other renderer** honours it. The rule lives in JavaScript, not in the data. A second chart, a live tile, a kiosk widget, or a CSV export can still get it wrong. The rule closes one renderer at a time, and it never closes globally. | **PART DONE** — closes per renderer, §17 |
 | Pelicase thermal | nothing yet | that a sealed case in Florida sun stays under thermal throttle. Unmodelled. | **OPEN** — blocks mechanical |
 | Power budget | nothing yet | that a field session runs to completion. Unmodelled. | **OPEN** — blocks BOM |
 | Demo schedule | nothing yet | that a divergent storm occurs before the pitch date. Unbounded wait, no engineering fix. | **OPEN** — see `MobileLab-Demo-Story.md` |
-Gate / claim	This proves	This does not prove	Status
-Storage on microSD	the stack runs and the demo works	that the card survives sustained write load. Postgres write amplification kills SD cards. Zero endurance evidence.	OPEN — exception, closes on NVMe arrival
+| Storage on microSD | the stack runs and the demo works | that the card survives sustained write load. Postgres write amplification kills SD cards. Zero endurance evidence. | **OPEN** — exception, closes on NVMe arrival |
+| RTC battery absent | nothing yet | that a timestamp taken after a power cut is right. The battery is not fitted, so the clock reads 1970 until NTP repairs it, and a field session has no network. Hard rule 13 discards those readings, so the station records nothing instead of something wrong. That is data loss, chosen on purpose. | **OPEN** — closes when the battery is fitted, §9 |
+| `data_checksums` off | nothing yet | that PostgreSQL can detect a corrupt page. Debian leaves checksums off by default, so corruption stays silent. This matters more while hard rule 9 runs under its microSD exception, because a worn card corrupts quietly. | **OPEN** — closes with `pg_checksums --enable` on a stopped cluster |
+| MQTT durability | a stopped writer loses nothing. The broker holds QoS 1 messages for a persistent session and delivers every one at reconnect. | that a power cut loses nothing. Mosquitto writes its queue to disk every 60 seconds, so a power cut can lose up to a minute of queued messages. The test stopped the writer, not the broker. | **OPEN** — closes with a shorter autosave interval, or with a UPS HAT |
+| Continuous aggregate correctness | a wide query reads a rollup and not a raw scan | that the rollup matches the raw table after a deletion. Deleting a raw row does **not** remove its aggregate bucket. Measured on 2026-08-15: 52 hour buckets survived with no raw row behind them, and the chart would have drawn deleted data. The refresh policy repairs this inside its window only. A correction older than the window stays wrong indefinitely. | **OPEN** — needs a correction procedure in the runbook, see `db/README.md` |
+| Local API exposure | the kiosk browser and a teacher laptop both reach the API | that it is safe on a shared network. The API binds `0.0.0.0` with no authentication, and `/docs` is open. It is read only today, which limits the damage but does not remove the exposure. | **OPEN** — dev cycle only, must close before any classroom network |
+
 ---
 
 ## 17. Negative tests, standing rule
@@ -527,6 +655,17 @@ Required at V1:
 
 A gate that stays green under a deliberate break is a defect found on our terms.
 
+### Standing rule: gates run at demo scale
+
+> Gates validated at toy scale prove the code path, not the behaviour. Any
+> gate that touches aggregation, retention, or a time window must run at
+> demo scale before it counts as passed. The 0011 defect - readings_1m
+> refreshing only a 3 hour window, leaving 45 of any 48 hours never
+> materialised - passed three separate suites at toy scale.
+
+State the row count and the time span each gate ran against. A gate that does not report
+its scale has not reported its result.
+
 ---
 
 ## 18. Open decisions
@@ -534,8 +673,8 @@ A gate that stays green under a deliberate break is a defect found on our terms.
 | # | Decision | Lean | Blocks |
 |---|---|---|---|
 | 1 | Uplink radios — ethernet / USB WiFi / cellular | ethernet + one field uplink | enclosure, power, BOM |
-| 2 | Local API stack — FastAPI or Node | FastAPI, Python matches driver layer | local API build |
-| 3 | Charting library choice | — | kiosk UI build |
+| 2 | Local API stack — FastAPI or Node | **CLOSED 2026-08-15: FastAPI.** Python matches the driver layer, so the services share one virtual environment and one record model. | nothing, it is built |
+| 3 | Charting library choice | **CLOSED 2026-08-15: Chart.js 4.4.7.** The repository holds a copy, so the chart draws with no internet. | nothing, it is built |
 | 4 | Breach state: CSV column or Pi recompute | append a CSV column | §3, §16 |
 | 5 | Battery chemistry and capacity | — | Pelicase mechanical |
 | 6 | Cellular carrier and SIM, if cellular ships | — | field autonomy |

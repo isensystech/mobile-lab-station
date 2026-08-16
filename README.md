@@ -27,7 +27,7 @@ synthetic fixture ─┘
 | Synthetic fixture | BUILT |
 | Local API | BUILT |
 | Overlay chart page | BUILT |
-| Manual entry form | NOT BUILT |
+| Manual entry form | BUILT |
 | gpsd driver | NOT BUILT |
 | WQL bridge | NOT BUILT |
 | Kiosk UI | NOT BUILT |
@@ -47,6 +47,36 @@ Run these at the Pi screen. They need no arguments and no `sudo`.
 The first shows data going in. The second shows it coming back out through the
 local API, and draws the overlay chart from the API answer. Each one ends with a
 list of what to look for and what shows a problem.
+
+## Entering readings
+
+This is the data collection instrument. Every rain gauge reading goes in here.
+
+```
+http://<pi-address>:8000/entry
+```
+
+Type a name and a site once. They stay for the next reading. Type the numbers
+you measured, leave the rest empty, and press Save. The numbers clear and the
+name and the site remain, so three readings a day is three short visits.
+
+The observation time defaults to now and you can change it. A person who
+measured at 07:00 and types it at 08:30 sets the time back. The station records
+both, as `ts` and `entered_at`.
+
+**A number outside the usual range still saves.** The row turns yellow before
+you save and the entry carries a FLAGGED tag afterwards. Blocking the input is a
+defect, and so is accepting it silently. Hard rules 1 and 12.
+
+**The station keeps your number.** Type 75.9 degF and the station stores 75.9
+degF in `value_raw` and `unit_raw`, and 24.39 degC in `value` and `unit`.
+
+**A wrong clock stops entry.** A red bar appears, the time box stays empty, and
+Save turns off. The station will not guess a time. Hard rule 13, and the RTC
+battery is not fitted.
+
+Press Fix on any recent entry to correct or remove it. A correction also repairs
+the rollup tables the chart reads.
 
 ## The overlay chart
 

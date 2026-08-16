@@ -18,25 +18,29 @@ Two rules shape every response that carries readings.
 from __future__ import annotations
 
 import asyncio
+import csv
+import io
 import json
 import logging
 import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 import paho.mqtt.client as mqtt
+import psycopg
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
-from . import __version__, topics
+from . import __version__, entry, metrics, topics
 from .config import load_settings
-from .record import parse_topic
+from .record import CLOCK_FLOOR, CLOCK_FUTURE_LIMIT, parse_topic
 from .series import (
     SERIES_META_SQL,
     SOURCES_SQL,
@@ -381,6 +385,12 @@ def selftest_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "selftest.html")
 
 
+@app.get("/entry", include_in_schema=False)
+def entry_page() -> FileResponse:
+    """The manual entry form. This is the data collection instrument."""
+    return FileResponse(STATIC_DIR / "entry.html")
+
+
 @app.get("/api/sources", response_model=list[SourceRow])
 def list_sources() -> list[dict]:
     return state.sources.all()
@@ -536,6 +546,328 @@ def series_pair(
         series=[AlignedSeries(**meta["a"]), AlignedSeries(**meta["b"])],
         explain=_explain(sql, params) if explain else None,
     )
+
+
+class EntryIn(BaseModel):
+    sensor: str
+    metric: str
+    value_raw: float
+    unit_raw: str
+
+
+class ObservationIn(BaseModel):
+    ts: datetime
+    entries: list[EntryIn] = Field(min_length=1)
+    station_id: str | None = None
+    observer: str | None = None
+    site_label: str | None = None
+    note: str | None = None
+    lat: float | None = None
+    lon: float | None = None
+
+
+class CorrectionIn(BaseModel):
+    value_raw: float
+    unit_raw: str
+
+
+def _refresh_aggregates(stamp: datetime) -> list[dict]:
+    """Refresh the rollups around a corrected row.
+
+    A correction that skips this leaves the chart drawing the old number.
+    refresh_continuous_aggregate controls its own transactions, so it needs a
+    connection of its own with autocommit on.
+    """
+    done = []
+    with psycopg.connect(state.settings.dsn(), autocommit=True) as conn, conn.cursor() as cur:
+        for view, start, end in entry.refresh_windows(stamp):
+            cur.execute(f"call refresh_continuous_aggregate('{view}', %s, %s)", (start, end))
+            done.append({"view": view, "from": start.isoformat(), "to": end.isoformat()})
+    return done
+
+
+def _clock_state() -> dict:
+    with state.pool.connection() as conn, conn.cursor() as cur:
+        cur.execute(entry.NEWEST_READING_TS)
+        row = cur.fetchone()
+    return entry.clock_health(row[0] if row else None)
+
+
+def _reading_or_404(reading_id: int) -> dict:
+    with state.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(entry.SELECT_READING, {"id": reading_id})
+        row = cur.fetchone()
+    if row is None:
+        raise HTTPException(404, f"There is no reading with id {reading_id}.")
+    return dict(row)
+
+
+@app.get("/api/metrics")
+def list_metrics() -> list[dict]:
+    """What the form may collect, with units and plausible ranges."""
+    return metrics.catalogue_payload()
+
+
+@app.get("/api/clock")
+def clock() -> dict:
+    """Is the station clock trustworthy? Hard rule 13."""
+    return _clock_state()
+
+
+@app.post("/api/observations")
+def create_observation(body: ObservationIn) -> dict:
+    """Save one batch. Several metrics, one observation_id."""
+    health = _clock_state()
+    if not health["ok"]:
+        raise HTTPException(409, {"reason": "implausible_clock", **_jsonable_clock(health)})
+
+    station_id = body.station_id or state.settings.mobilelab_station_id
+
+    now = datetime.now(UTC)
+    if body.ts < CLOCK_FLOOR:
+        raise HTTPException(400, f"The observation time is before {CLOCK_FLOOR.date()}.")
+    if body.ts > now + CLOCK_FUTURE_LIMIT:
+        raise HTTPException(400, "The observation time is more than 24 hours ahead.")
+
+    prepared = []
+    for item in body.entries:
+        try:
+            value, unit = metrics.to_canonical(
+                item.sensor, item.metric, item.value_raw, item.unit_raw
+            )
+        except (metrics.UnknownMetric, metrics.UnknownUnit) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        flag = metrics.quality_flag(item.sensor, item.metric, value)
+        prepared.append(
+            {
+                "sensor": item.sensor,
+                "metric": item.metric,
+                "value": value,
+                "unit": unit,
+                "value_raw": item.value_raw,
+                "unit_raw": item.unit_raw,
+                "quality_flag": flag,
+            }
+        )
+
+    batch_flag = (
+        metrics.IMPLAUSIBLE
+        if any(e["quality_flag"] == metrics.IMPLAUSIBLE for e in prepared)
+        else metrics.PLAUSIBLE
+    )
+
+    with state.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            entry.INSERT_OBSERVATION,
+            {
+                "station_id": station_id,
+                "observer": body.observer,
+                "site_label": body.site_label,
+                "ts": body.ts,
+                "lat": body.lat,
+                "lon": body.lon,
+                "note": body.note,
+                "quality_flag": batch_flag,
+            },
+        )
+        created = cur.fetchone()
+        conn.commit()
+
+    observation_id = str(created["observation_id"])
+    stamp = body.ts.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+    for item in prepared:
+        record = {
+            "station_id": station_id,
+            "sensor": item["sensor"],
+            "metric": item["metric"],
+            "value": item["value"],
+            "unit": item["unit"],
+            "ts": stamp,
+            "lat": body.lat,
+            "lon": body.lon,
+            "source": entry.MANUAL_SOURCE,
+            "observation_id": observation_id,
+            "value_raw": item["value_raw"],
+            "unit_raw": item["unit_raw"],
+            "quality_flag": item["quality_flag"],
+        }
+        topic = f"station/{station_id}/{item['sensor']}/{item['metric']}"
+        info = state.mqtt.publish(topic, json.dumps(record), qos=1)
+        info.wait_for_publish(timeout=5)
+
+    expected = len(prepared)
+    deadline = time.monotonic() + 5.0
+    stored = 0
+    while time.monotonic() < deadline:
+        with state.pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(entry.COUNT_BATCH_READINGS, {"observation_id": observation_id})
+            stored = cur.fetchone()[0]
+        if stored >= expected:
+            break
+        time.sleep(0.1)
+
+    batch = _load_batch(observation_id)
+    batch["expected_readings"] = expected
+    batch["stored_readings"] = stored
+    batch["complete"] = stored >= expected
+    if not batch["complete"]:
+        log.error(
+            "batch %s expected %d readings and stored %d. Is the writer running?",
+            observation_id,
+            expected,
+            stored,
+        )
+    return batch
+
+
+def _jsonable_clock(health: dict) -> dict:
+    out = dict(health)
+    for key in ("now", "newest_reading_ts", "floor"):
+        if out.get(key) is not None:
+            out[key] = out[key].isoformat()
+    return out
+
+
+def _load_batch(observation_id: str) -> dict:
+    with state.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(entry.SELECT_BATCH, {"observation_id": observation_id})
+        rows = [dict(row) for row in cur.fetchall()]
+    grouped = entry.group_batches(rows)
+    if not grouped:
+        raise HTTPException(404, f"There is no observation {observation_id}.")
+    return grouped[0]
+
+
+@app.get("/api/observations/recent")
+def recent_observations(station_id: str | None = None, limit: int = 5) -> list[dict]:
+    """The newest batches, so a typo or a duplicate shows at once."""
+    station_id = station_id or state.settings.mobilelab_station_id
+    limit = max(1, min(limit, 50))
+    with state.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(entry.SELECT_RECENT, {"station_id": station_id, "limit": limit})
+        rows = [dict(row) for row in cur.fetchall()]
+    return entry.group_batches(rows)
+
+
+@app.get("/api/observations/{observation_id}")
+def one_observation(observation_id: str) -> dict:
+    return _load_batch(observation_id)
+
+
+@app.patch("/api/readings/{reading_id}")
+def correct_reading(reading_id: int, body: CorrectionIn) -> dict:
+    """Fix a number entered by mistake, then repair the rollups."""
+    existing = _reading_or_404(reading_id)
+
+    try:
+        value, unit = metrics.to_canonical(
+            existing["sensor"], existing["metric"], body.value_raw, body.unit_raw
+        )
+    except (metrics.UnknownMetric, metrics.UnknownUnit) as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    flag = metrics.quality_flag(existing["sensor"], existing["metric"], value)
+
+    with state.pool.connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            entry.UPDATE_READING,
+            {
+                "id": reading_id,
+                "ts": existing["ts"],
+                "value": value,
+                "unit": unit,
+                "value_raw": body.value_raw,
+                "unit_raw": body.unit_raw,
+                "quality_flag": flag,
+            },
+        )
+        if cur.fetchone() is None:
+            raise HTTPException(404, f"There is no reading with id {reading_id}.")
+        conn.commit()
+
+    refreshed = _refresh_aggregates(existing["ts"])
+    log.info("corrected reading %d, refreshed %d rollup windows", reading_id, len(refreshed))
+
+    return {
+        "reading_id": reading_id,
+        "was": {"value": existing["value"], "unit": existing["unit"]},
+        "now": {"value": value, "unit": unit},
+        "quality_flag": flag,
+        "aggregates_refreshed": refreshed,
+    }
+
+
+@app.delete("/api/readings/{reading_id}")
+def remove_reading(reading_id: int) -> dict:
+    """Remove a reading entered by mistake, then repair the rollups."""
+    existing = _reading_or_404(reading_id)
+
+    with state.pool.connection() as conn, conn.cursor() as cur:
+        cur.execute(entry.DELETE_READING, {"id": reading_id, "ts": existing["ts"]})
+        if cur.fetchone() is None:
+            raise HTTPException(404, f"There is no reading with id {reading_id}.")
+        conn.commit()
+
+    refreshed = _refresh_aggregates(existing["ts"])
+    log.info("removed reading %d, refreshed %d rollup windows", reading_id, len(refreshed))
+
+    return {
+        "reading_id": reading_id,
+        "removed": {
+            "sensor": existing["sensor"],
+            "metric": existing["metric"],
+            "value": existing["value"],
+            "unit": existing["unit"],
+            "ts": existing["ts"].isoformat(),
+        },
+        "aggregates_refreshed": refreshed,
+    }
+
+
+@app.get("/api/export.csv", response_class=PlainTextResponse)
+def export_csv(
+    station_id: str | None = None,
+    observation_id: str | None = None,
+    start: datetime | None = Query(None, alias="from"),
+    end: datetime | None = Query(None, alias="to"),
+) -> PlainTextResponse:
+    """Export readings as CSV. The column list is append-only, hard rule 5."""
+    end = end or datetime.now(UTC) + timedelta(days=1)
+    start = start or (end - timedelta(days=31))
+
+    with state.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            entry.EXPORT_SQL,
+            {
+                "start": start,
+                "end": end,
+                "station_id": station_id,
+                "observation_id": observation_id,
+            },
+        )
+        rows = [dict(row) for row in cur.fetchall()]
+
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=list(entry.EXPORT_COLUMNS), extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({key: _csv_cell(row.get(key)) for key in entry.EXPORT_COLUMNS})
+
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return PlainTextResponse(
+        buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="mobilelab-{stamp}.csv"'},
+    )
+
+
+def _csv_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
 
 
 @app.websocket("/ws/live")

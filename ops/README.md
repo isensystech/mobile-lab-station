@@ -14,7 +14,9 @@ and Scott configures it in person at the console. No script reads or writes `wla
 | `verify-writer.sh` | Runs the writer and fixture gates. |
 | `verify-api.sh` | Runs the local API and durability gates. |
 | `verify-chart.sh` | Runs the overlay chart gates in headless Chromium, at 14 day scale. |
+| `verify-entry.sh` | Runs the manual entry gates, at 14 day scale. It breaks and restores the clock. |
 | `eyewitness-chart.sh` | Prints the chart address and what to look for. No arguments, no sudo. |
+| `eyewitness-entry.sh` | Prints the entry form address and four tasks to do by hand. No arguments, no sudo. |
 | `eyewitness.sh` | Shows data going in. No arguments, no sudo. |
 | `eyewitness-api.sh` | Shows data coming back out through the API. No arguments, no sudo. |
 | `install-mosquitto.sh` | Installs Mosquitto from Debian. Installs the station configuration. Enables the unit. |
@@ -82,7 +84,7 @@ that does not exist, and one needs hardware that is absent.
 | Test | Status |
 |---|---|
 | Source labelling, the chart draws synthetic dashed | **PART DONE.** `verify-chart.sh` gate 3 runs 30 checks in Chromium against the shared chart code. A missing, null, empty, wrongly cased, or numeric `render_hint` draws dashed and raises the banner. It closes the rule for the overlay chart only. Any second chart, tile, or export can still get it wrong. |
-| Implausible entry, pH 700 saves and flags | **OWED.** No entry form exists. The `quality_flag` column is ready. |
+| Implausible entry, pH 700 saves and flags | **PART DONE.** `verify-entry.sh` gate 2 enters pH 700 through the form. The row saves, keeps the typed number, carries `quality_flag='implausible'` on the row and the batch, and shows a FLAGGED tag on screen. The review queue promised in architecture section 4 is NOT built, so nothing gathers flagged rows for a teacher. |
 | Offline buffer, pull the uplink | **OWED.** No offload service exists. |
 | Power yank with the UPS HAT | **PART DONE.** Scott cut the power on 2026-08-15 with no UPS HAT fitted. PostgreSQL recovered cleanly and lost no committed rows. The graceful shutdown half stays owed until a UPS HAT exists. |
 

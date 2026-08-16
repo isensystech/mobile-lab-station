@@ -1,0 +1,142 @@
+/*
+ * The manual entry form.
+ *
+ * Sized for a finger on a 10.1 inch touchscreen, not for a mouse.
+ * Every control a person taps is at least 56 pixels tall.
+ */
+
+:root {
+  --touch: 56px;
+  --alarm-bg: #7a1f1f;
+  --flag-bg: #fff0d6;
+  --flag-ink: #7a4a00;
+  --flag-line: #b8860b;
+}
+
+.entry-main {
+  max-width: 1000px;
+  margin: 1rem auto;
+  padding: 0 1rem 4rem;
+  display: grid;
+  gap: 1rem;
+}
+
+/* The clock alarm. Hard rule 13. It blocks saving and it says why. */
+.alarm {
+  background: var(--alarm-bg);
+  color: #fff;
+  padding: 1rem 1.2rem;
+  border-bottom: 5px solid #4a1212;
+}
+.alarm strong { display: block; font-size: 1.3rem; letter-spacing: 0.04em; }
+.alarm p { margin: 0.4rem 0 0; }
+.alarm-advice { font-size: 0.98rem; opacity: 0.95; }
+.alarm-hidden { display: none; }
+
+.field-row { display: flex; flex-wrap: wrap; gap: 1rem; }
+.field { display: flex; flex-direction: column; gap: 0.3rem; flex: 1 1 260px; }
+.field-label { font-size: 0.95rem; color: var(--muted); font-weight: 600; }
+
+.big-input {
+  min-height: var(--touch);
+  font-size: 1.25rem;
+  padding: 0.5rem 0.7rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  width: 100%;
+}
+.big-input:focus { outline: 3px solid #1f6feb; border-color: #1f6feb; }
+textarea.big-input { min-height: 4rem; font-size: 1.1rem; }
+
+.btn {
+  min-height: var(--touch);
+  min-width: 140px;
+  font-size: 1.15rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 10px;
+  border: 2px solid var(--line);
+  background: #f6f8fa;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-save { background: #1d5c1d; border-color: #144814; color: #fff; min-width: 260px; }
+.btn-danger { background: #7a1f1f; border-color: #5c1414; color: #fff; }
+.btn-secondary { background: #eef1f4; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.save-panel { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+.save-result { margin: 0; font-size: 1.1rem; font-weight: 600; flex-basis: 100%; }
+.save-ok { color: #1d5c1d; }
+.save-bad { color: #7a1f1f; }
+
+/* One row for each metric. The label, the number, and the unit sit together. */
+.metric-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.metric-name { flex: 1 1 190px; font-size: 1.1rem; font-weight: 600; }
+.metric-hint { display: block; font-size: 0.85rem; color: var(--muted); font-weight: 400; }
+.metric-value { flex: 0 1 170px; }
+.metric-unit { flex: 0 1 130px; }
+.metric-warn { flex-basis: 100%; margin: 0.2rem 0 0; color: var(--flag-ink); font-weight: 600; }
+.metric-warn:empty { display: none; }
+
+select.big-input { appearance: auto; }
+
+/* A flagged value. It saves. It does not hide. */
+.flagged {
+  background: var(--flag-bg);
+  border-left: 6px solid var(--flag-line);
+  padding-left: 0.6rem;
+}
+.tag-flag {
+  background: var(--flag-line);
+  color: #fff;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.batch {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 0.7rem;
+}
+.batch-head { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: baseline; }
+.batch-when { font-weight: 700; }
+.batch-who { color: var(--muted); }
+.batch-note { margin: 0.3rem 0 0; font-style: italic; color: var(--muted); }
+.batch table { margin-top: 0.5rem; }
+.batch td, .batch th { padding: 0.4rem 0.5rem; }
+.reading-fix { min-height: 44px; min-width: 90px; font-size: 1rem; padding: 0.3rem 0.7rem; }
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 20, 24, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 50;
+}
+.modal-hidden { display: none; }
+.modal-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.2rem;
+  max-width: 520px;
+  width: 100%;
+  display: grid;
+  gap: 0.8rem;
+}
+.modal-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; }

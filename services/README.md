@@ -14,6 +14,9 @@ record shape changes every service at once.
 | `mobilelab.writer` | `mobilelab-writer.service` | Subscribes to `station/#`. Validates. Inserts into `readings`. |
 | `mobilelab.api` | `mobilelab-api.service` | Serves history over REST, live readings over a websocket, and the chart page. |
 | `static/chart-core.js` | none | The chart rules. The live page and the self test both load it. |
+| `mobilelab.metrics` | none | The metric catalogue, unit conversion, and the plausible range. |
+| `mobilelab.entry` | none | Manual entry: batches, corrections, export, and the clock check. |
+| `static/entry.js` | none | The entry form. |
 | `mobilelab.fixture` | `mobilelab-fixture.service` | Makes a seeded rainfall and salinity pair. Publishes it. |
 | `mobilelab.plot` | none | Draws two series in a terminal, from the API or from the database. |
 | `mobilelab.wslisten` | none | Prints live readings from the websocket. |
@@ -172,13 +175,30 @@ generator version. A person can rebuild the exact series from any row.
 **The unit has no `[Install]` section on purpose.** A fixture must never start at
 boot. `systemctl enable mobilelab-fixture` fails, and that is wanted.
 
+## The manual entry form
+
+It serves at `/entry`. See the README at the repository root for how a person
+uses it.
+
+**It is an acquisition driver, per architecture section 2.** A reading goes out
+on MQTT with `source: "manual"`, and the writer stores it, exactly like any
+other driver. Only the batch header row goes straight to the database, because a
+batch is not a reading and has no place in the record shape.
+
+That split has one consequence worth knowing. The header is written first, then
+each reading is published. If the writer stops midway, the batch header exists
+with fewer readings than expected. The response reports `stored_readings`
+against `expected_readings` so the form can say so. Nothing repairs it.
+
+**A correction refreshes the rollups.** `PATCH` and `DELETE` on a reading both
+refresh `readings_1m` and `readings_1h` around the changed row before they
+answer. Without that the chart keeps drawing the old value. See `db/README.md`.
+
 ## Not built
 
 | Service | Job | Tier |
 |---|---|---|
-| `api` | Serves history over REST. Serves live tiles over a websocket. | V1 |
 | `kiosk` | The Chromium web app for the ROADOM 10.1 inch touchscreen. | V1 |
-| `manual-entry` | The manual entry form. It publishes with `source: "manual"`. | V1 |
 | `wql-bridge` | Accepts a dive over HTTP. Republishes it to MQTT. | V1 |
 | `gpsd-driver` | Reads gpsd. Publishes position and time. | V1 |
 | `offload` | Drains TimescaleDB to Supabase when a default route appears. | V2 |

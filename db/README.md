@@ -32,6 +32,7 @@ TimescaleDB needs this for `CREATE EXTENSION` and for continuous aggregates.
 | `0009_app_role_grants.sql` | Grants table access to the `mobilelab` role. |
 | `0010_readings_provenance.sql` | Adds `provenance` to `readings`. A generator records its seed there. |
 | `0011_widen_cagg_refresh.sql` | Widens the aggregate refresh windows to 7 days and 90 days. |
+| `0012_cagg_owner.sql` | Gives the `mobilelab` role ownership of both rollups, so a correction can refresh them. |
 
 ## A rollup keeps data you deleted
 
@@ -52,6 +53,15 @@ range you touched.
 call refresh_continuous_aggregate('public.readings_1m', '2026-08-01', '2026-08-16');
 call refresh_continuous_aggregate('public.readings_1h', '2026-08-01', '2026-08-16');
 ```
+
+**The entry form does this for you.** A correction or a removal through
+`/entry` refreshes both rollups around the changed row before it answers. Only
+a change made outside the form needs the call above.
+
+Only the owner of a rollup may refresh it. Migration 0012 gives the `mobilelab`
+role that ownership. A `SECURITY DEFINER` wrapper cannot work, because
+`refresh_continuous_aggregate` controls its own transactions and PostgreSQL
+forbids that inside a `SECURITY DEFINER` routine.
 
 The scheduled policies repair this on their own, but only inside their windows.
 Migration 0011 sets those to 7 days for `readings_1m` and 90 days for
