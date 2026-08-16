@@ -90,7 +90,13 @@ textarea.big-input { min-height: 5rem; padding: 0.4rem; }
   border: 2px solid var(--line);
   border-radius: 8px;
 }
-.save-row .btn-save { min-width: 180px; }
+/*
+ * Save sits at the right end of the row, on its own.
+ *
+ * It is the one control that commits data. Putting it beside Clear invites the
+ * wrong tap. The gap pushes it away from everything that only edits.
+ */
+.save-row .btn-save { min-width: 180px; margin-left: auto; }
 .save-result { margin: 0; font-weight: 700; font-size: 0.9rem; flex-basis: 100%; }
 .save-ok { color: #1d5c1d; }
 .save-bad { color: #7a1f1f; }

@@ -43,9 +43,11 @@ from . import __version__, entry, kb, metrics, suite, topics
 from .config import load_settings
 from .record import CLOCK_FLOOR, CLOCK_FUTURE_LIMIT, parse_topic
 from .series import (
+    MAX_SERIES,
     SERIES_META_SQL,
     SOURCES_SQL,
     choose_relation,
+    multi_sql,
     pair_sql,
     series_sql,
 )
@@ -72,7 +74,7 @@ class SeriesBase(BaseModel):
     source: str
     unit: str | None
     is_real: bool
-    render_hint: Literal["solid", "dashed"]
+    render_hint: Literal["solid", "dashed", "stepped"]
     source_known: bool = True
     provenance: dict[str, Any] | None = None
 
@@ -94,6 +96,26 @@ class HistoryResponse(BaseModel):
     served_from: str
     bucket: str | None
     series: list[HistorySeries]
+    explain: list[str] | None = None
+    caption: str = "Correlation is not causation."
+
+
+class MultiSeries(SeriesBase):
+    """One series on the shared axis, for the N series endpoint."""
+
+    key: str
+    name: str
+    values: list[float | None]
+
+
+class MultiResponse(BaseModel):
+    station_id: str
+    start: datetime = Field(serialization_alias="from")
+    end: datetime = Field(serialization_alias="to")
+    served_from: str
+    bucket: str | None
+    axis: list[datetime]
+    series: list[MultiSeries]
     explain: list[str] | None = None
     caption: str = "Correlation is not causation."
 
@@ -651,6 +673,109 @@ def series_pair(
         bucket=relation.bucket,
         axis=axis,
         series=[AlignedSeries(**meta["a"]), AlignedSeries(**meta["b"])],
+        explain=_explain(sql, params) if explain else None,
+    )
+
+
+@app.get("/api/series/multi", response_model=MultiResponse, response_model_by_alias=True)
+def series_multi(
+    series: list[str] = Query(..., alias="series"),
+    station_id: str | None = None,
+    start: datetime | None = Query(None, alias="from"),
+    end: datetime | None = Query(None, alias="to"),
+    explain: bool = False,
+) -> MultiResponse:
+    """Return up to four metrics on one shared time axis.
+
+    Each series is given as sensor:metric:source, with an optional fourth part
+    for the name the screen shows. For example:
+
+      series=water:salinity:synthetic:Salinity
+      series=rain:rainfall:public_synthetic:NOAA
+      series=rain:rainfall:synthetic:Rain Gauge
+
+    The same sensor and metric from two different sources is the ordinary case,
+    not a special one. Architecture section 6 makes sensor and metric the join
+    key, so a public row and a local row compare directly.
+    """
+    if not 1 <= len(series) <= MAX_SERIES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Ask for between 1 and {MAX_SERIES} series. You asked for {len(series)}.",
+        )
+
+    specs = []
+    for index, raw in enumerate(series):
+        parts = raw.split(":")
+        if len(parts) < 3 or not all(parts[position] for position in range(3)):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Series {index + 1} is {raw!r}. Write it as "
+                    f"sensor:metric:source, and add :name if you want one."
+                ),
+            )
+        sensor, metric, source = parts[0], parts[1], parts[2]
+        name = ":".join(parts[3:]) if len(parts) > 3 else metric
+        specs.append({"sensor": sensor, "metric": metric, "source": source, "name": name})
+
+    station_id = station_id or state.settings.mobilelab_station_id
+    start, end = _window(start, end)
+    relation = choose_relation(end - start)
+
+    params: dict[str, Any] = {
+        "station_id": station_id,
+        "start": start,
+        "end": end,
+    }
+    for index, spec in enumerate(specs):
+        params[f"s{index}_sensor"] = spec["sensor"]
+        params[f"s{index}_metric"] = spec["metric"]
+        params[f"s{index}_source"] = spec["source"]
+
+    sql = multi_sql(relation, len(specs))
+
+    with state.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+        built = []
+        for index, spec in enumerate(specs):
+            cur.execute(
+                SERIES_META_SQL,
+                {
+                    "station_id": station_id,
+                    "sensor": spec["sensor"],
+                    "metric": spec["metric"],
+                    "source": spec["source"],
+                },
+            )
+            found = cur.fetchone()
+            label = state.sources.label(spec["source"])
+            built.append(
+                {
+                    "key": f"s{index}",
+                    "name": spec["name"],
+                    "sensor": spec["sensor"],
+                    "metric": spec["metric"],
+                    "source": spec["source"],
+                    "unit": found["unit"] if found else None,
+                    "is_real": found["is_real"] if found else label["is_real"],
+                    "render_hint": found["render_hint"] if found else label["render_hint"],
+                    "source_known": label["known"],
+                    "provenance": found["provenance"] if found else None,
+                    "values": [row[f"v{index}"] for row in rows],
+                }
+            )
+
+    return MultiResponse(
+        station_id=station_id,
+        start=start,
+        end=end,
+        served_from=relation.name,
+        bucket=relation.bucket,
+        axis=[row["ts"] for row in rows],
+        series=[MultiSeries(**entry) for entry in built],
         explain=_explain(sql, params) if explain else None,
     )
 

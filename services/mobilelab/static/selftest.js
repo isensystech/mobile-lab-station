@@ -29,6 +29,55 @@ const CASES = [
     wantReal: false,
     wantDashed: true,
   },
+  /*
+   * The public record, added with the cell average.
+   *
+   * A new hint must not become a hole in the rule. "stepped" is now valid, so
+   * the control below must still come back REAL, and every near miss around it
+   * must still come back NOT real.
+   */
+  {
+    name: "CONTROL, a real public record with a stepped hint draws real",
+    series: { ...base, source: "public_record", is_real: true, render_hint: "stepped" },
+    wantReal: true,
+    wantDashed: false,
+  },
+  {
+    name: "a synthetic public record with a stepped hint is not real",
+    series: { ...base, source: "public_synthetic", is_real: false, render_hint: "stepped" },
+    wantReal: false,
+    wantDashed: true,
+  },
+  {
+    name: "public record, render_hint STEPPED in the wrong case",
+    series: { ...base, source: "public_record", is_real: true, render_hint: "STEPPED" },
+    wantReal: false,
+    wantDashed: true,
+  },
+  {
+    name: "public record, render_hint step, a near miss",
+    series: { ...base, source: "public_record", is_real: true, render_hint: "step" },
+    wantReal: false,
+    wantDashed: true,
+  },
+  {
+    name: "public record, render_hint stepped with a trailing space",
+    series: { ...base, source: "public_record", is_real: true, render_hint: "stepped " },
+    wantReal: false,
+    wantDashed: true,
+  },
+  {
+    name: "public record, render_hint null",
+    series: { ...base, source: "public_record", is_real: true, render_hint: null },
+    wantReal: false,
+    wantDashed: true,
+  },
+  {
+    name: "public record, is_real is the string true",
+    series: { ...base, source: "public_record", is_real: "true", render_hint: "stepped" },
+    wantReal: false,
+    wantDashed: true,
+  },
   {
     name: "render_hint absent",
     series: { ...base, source: "synthetic", is_real: false },
@@ -174,6 +223,37 @@ check(
   "buildDatasets marks an untrusted series as not real",
   built.datasets[1].mobilelab.isReal === false,
   `isReal was ${built.datasets[1].mobilelab.isReal}`
+);
+
+/* A stepped series must be marked stepped, and only when the hint says so. */
+const steppedPayload = {
+  axis: ["2026-08-15T00:00:00Z", "2026-08-15T01:00:00Z", "2026-08-15T02:00:00Z"],
+  series: [
+    { ...base, key: "s0", source: "manual", is_real: true, render_hint: "solid" },
+    { ...base, key: "s1", sensor: "rain", metric: "rainfall", unit: "mm", source: "public_record", is_real: true, render_hint: "stepped" },
+    { ...base, key: "s2", sensor: "rain", metric: "rainfall", unit: "mm", source: "public_record", is_real: true, render_hint: "STEPPED" },
+  ],
+};
+const steppedBuilt = buildDatasets(steppedPayload, {});
+check(
+  "buildDatasets steps a cell average",
+  steppedBuilt.datasets[1].stepped === "after",
+  `stepped was ${JSON.stringify(steppedBuilt.datasets[1].stepped)}`
+);
+check(
+  "buildDatasets does not step an ordinary series",
+  steppedBuilt.datasets[0].stepped === false,
+  `stepped was ${JSON.stringify(steppedBuilt.datasets[0].stepped)}`
+);
+check(
+  "a malformed stepped hint is not stepped and not real",
+  steppedBuilt.datasets[2].stepped === false && steppedBuilt.datasets[2].mobilelab.isReal === false,
+  `stepped was ${JSON.stringify(steppedBuilt.datasets[2].stepped)}, isReal ${steppedBuilt.datasets[2].mobilelab.isReal}`
+);
+check(
+  "two rainfall series in the same unit share one axis",
+  steppedBuilt.axisIds[1] === steppedBuilt.axisIds[2],
+  `axes were ${steppedBuilt.axisIds.join(",")}`
 );
 
 document.getElementById("results").textContent = lines.join("\n");

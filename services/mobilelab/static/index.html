@@ -35,15 +35,32 @@
 
   <section class="chart-panel panel">
     <div class="chart-holder">
-      <canvas id="chart" aria-label="Overlay chart of two measurements"></canvas>
+      <canvas id="chart" aria-label="Overlay chart of salinity, the public record, and the local rain gauge"></canvas>
     </div>
   </section>
 
-  <section class="panel control-panel">
+  <section class="control-panel">
+    <!--
+      One button for each measurement. A button shows or hides its own line and
+      changes nothing else on the screen.
+
+      The buttons are large because a person uses them during a lesson, on a
+      touchscreen, without looking down.
+    -->
     <div class="controls">
+      <div class="series-toggles" role="group" aria-label="Show or hide each measurement">
+        <button type="button" class="series-toggle" id="toggle-s0" data-series="s0" aria-pressed="true">
+          <span class="toggle-name">Salinity</span>
+        </button>
+        <button type="button" class="series-toggle" id="toggle-s1" data-series="s1" aria-pressed="true">
+          <span class="toggle-name">NOAA</span>
+        </button>
+        <button type="button" class="series-toggle" id="toggle-s2" data-series="s2" aria-pressed="true">
+          <span class="toggle-name">Rain Gauge</span>
+        </button>
+      </div>
       <label class="ctl">
-        <span class="ctl-label">Range</span>
-        <select id="range">
+        <select id="range" aria-label="Range">
           <option value="48">48 hours</option>
           <option value="168" selected>7 days</option>
           <option value="336">14 days</option>
@@ -54,8 +71,7 @@
         <span>Normalize</span>
       </label>
       <label class="ctl ctl-slider">
-        <span class="ctl-label">Shift second line</span>
-        <input type="range" id="lag" min="-12" max="24" step="1" value="0">
+        <input type="range" id="lag" min="-12" max="24" step="1" value="0" aria-label="Shift rainfall">
         <output id="lag-value">0 h</output>
       </label>
       <button id="use-estimate" type="button" class="btn">Measured delay</button>
@@ -65,8 +81,11 @@
     </div>
 
     <p id="caption-headline" class="caption-headline">Reading the data...</p>
+    <div class="caption-row">
+      <div id="caption-pairs"></div>
+      <p id="caption-shift" class="caption-shift"></p>
+    </div>
     <p id="caption-detail" class="caption-detail"></p>
-    <p id="caption-shift" class="caption-shift"></p>
     <p class="warning" id="warning"></p>
   </section>
 
@@ -101,6 +120,10 @@
     </p>
     <p class="muted">
       A line drawn with dashes is not real. A line drawn solid is a measurement.
+    </p>
+    <p class="muted">
+      A line drawn in steps is a cell average. The number covers a whole area for
+      a whole hour. It is not a reading from one place.
     </p>
     <div class="modal-actions">
       <button type="button" id="sim-close" class="btn">Close</button>

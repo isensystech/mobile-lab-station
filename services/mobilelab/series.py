@@ -118,6 +118,58 @@ order by 1
 """
 
 
+MAX_SERIES = 4
+
+
+def multi_sql(relation: Relation, count: int) -> str:
+    """Read up to MAX_SERIES metrics onto one shared time axis.
+
+    The pair query used a full outer join, which does not generalize past two
+    inputs. This builds one axis from the union of every series' timestamps,
+    then left joins each series onto it. A gap in one series returns a null in
+    that column and keeps the row, exactly as the pair query did.
+
+    count comes from the length of a validated list, never from a request
+    string, and every table name here is a fixed constant. So no identifier
+    reaches SQL from a caller.
+    """
+    if not 1 <= count <= MAX_SERIES:
+        raise ValueError(f"count must be between 1 and {MAX_SERIES}")
+
+    parts = []
+    for index in range(count):
+        parts.append(
+            f"""s{index} as (
+  select r.{relation.time_column} as ts, r.{relation.value_column} as value
+  from {relation.name} r
+  where r.station_id = %(station_id)s
+    and r.sensor = %(s{index}_sensor)s
+    and r.metric = %(s{index}_metric)s
+    and r.source = %(s{index}_source)s
+    and r.{relation.time_column} >= %(start)s
+    and r.{relation.time_column} < %(end)s
+)"""
+        )
+
+    axis_union = "\n  union\n  ".join(f"select ts from s{index}" for index in range(count))
+    parts.append(f"axis as (\n  {axis_union}\n)")
+
+    columns = ",\n  ".join(f"s{index}.value as v{index}" for index in range(count))
+    joins = "\n".join(
+        f"left join s{index} on s{index}.ts = axis.ts" for index in range(count)
+    )
+
+    return f"""
+with {",\n".join(parts)}
+select
+  axis.ts as ts,
+  {columns}
+from axis
+{joins}
+order by 1
+"""
+
+
 SERIES_META_SQL = """
 select
   r.unit,

@@ -5,6 +5,14 @@
  * page never scrolls. Anything secondary lives in a popup.
  */
 
+/*
+ * The chart takes eight tenths of the space under the bar. The controls take
+ * two tenths.
+ *
+ * The chart IS the lesson. Everything below it is a way to change the chart, so
+ * the controls earn their height and nothing more. The two grow together, so
+ * the split holds on any screen and not only at 1024 by 600.
+ */
 .chart-panel {
   flex: 1 1 auto;
   min-height: 0;
@@ -18,16 +26,37 @@
  */
 .chart-holder { position: absolute; inset: 0.4rem 0.5rem; }
 
-.control-panel { flex: 0 0 auto; }
+/*
+ * No card under the controls.
+ *
+ * The chart sits on a card because it is the thing being read. The controls act
+ * on it, so they belong to the frame of the screen and read as part of the
+ * footer. A second white card put a border between the reader and the tools.
+ */
+.control-panel {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 0.3rem 0.15rem 0.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+}
 
 .controls {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.5rem 0.7rem;
-  margin-bottom: 0.35rem;
+  gap: 0.4rem;
+  margin: 0;
+  flex: 0 0 auto;
 }
-.ctl { display: flex; align-items: center; gap: 0.35rem; font-size: 0.86rem; }
+/* Everything except the slider keeps its own width. */
+.controls > .series-toggles,
+.controls > .btn { flex: 0 0 auto; }
+.ctl { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; white-space: nowrap; }
 .ctl-label { color: var(--muted); font-weight: 700; white-space: nowrap; }
 .ctl select {
   min-height: var(--touch);
@@ -40,16 +69,142 @@
 }
 .ctl-check input { width: 26px; height: 26px; }
 .ctl-check span { font-weight: 700; }
-.ctl-slider input[type="range"] { width: 210px; height: var(--touch); }
+/*
+ * The slider takes every pixel left over on the row.
+ *
+ * A wider track is a finer control. The row had dead space between the reading
+ * and the buttons, and that space is worth more under a finger than empty.
+ */
+.ctl-slider { flex: 1 1 auto; min-width: 120px; }
+.ctl-slider input[type="range"] {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 80px;
+  height: var(--touch);
+}
 .ctl-slider output {
   font-variant-numeric: tabular-nums;
   min-width: 3.4rem;
   font-weight: 700;
+  flex: 0 0 auto;
+  text-align: right;
 }
 .ctl-hidden { display: none; }
 
-.caption-headline { font-size: 1.06rem; font-weight: 700; margin: 0; }
-.caption-detail { margin: 0.1rem 0 0; color: var(--muted); font-size: 0.86rem; }
-.caption-shift { margin: 0.1rem 0 0; font-size: 0.86rem; }
+/*
+ * The headline is the sentence the lesson turns on. It is never truncated.
+ * Losing a little chart height costs less than losing the end of it.
+ */
+.caption-headline {
+  font-size: 0.92rem;
+  font-weight: 800;
+  margin: 0;
+  line-height: 1.25;
+}
+.caption-detail { display: none; }
+.caption-shift {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.3;
+  text-align: right;
+  flex: 0 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * The headline and the shift note share one row. Each of them alone would cost
+ * a whole line of chart, and the chart is the lesson.
+ */
+.caption-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+/*
+ * The two r values never shrink. They are the required content. The shift note
+ * gives up its width first, because the slider already shows the same number.
+ */
+.caption-row #caption-pairs { flex: 0 0 auto; }
+.caption-row .caption-shift { flex: 1 1 auto; min-width: 0; }
 
 .power-result { margin: 0.6rem 0 0; font-weight: 700; }
+
+/*
+ * The series toggles.
+ *
+ * A person uses these during a lesson, on a touchscreen, while talking. So the
+ * target is 56 px tall, which is larger than the 44 px used elsewhere on this
+ * screen. A missed tap in front of a class costs more than a missed tap alone
+ * at a desk.
+ *
+ * A hidden series keeps its place and its colour. Only the fill changes. The
+ * button must never move, because a person reaches for it without looking.
+ */
+.series-toggles {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+/*
+ * The WHOLE button carries the colour of its line. There is no separate square.
+ *
+ * A small swatch asks a person to match a chip to a line. The button itself is
+ * the chip, so a person looks for the orange button to find the orange line.
+ * The colour comes from the chart, set as --series-colour by app.js, so the
+ * button and the line can never drift apart.
+ */
+.series-toggle {
+  /*
+   * Same height as every other button on this row, --touch, which is 44 px.
+   *
+   * These asked for 56 px when they were first built. Scott judged that too
+   * tall beside "Measured delay" and asked for one height across the row.
+   * 44 px still clears the usual 44 px touch target.
+   */
+  min-height: var(--touch);
+  min-width: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.9rem;
+  border: 2px solid var(--series-colour, var(--line));
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--series-colour, var(--muted));
+  font-size: 0.96rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Shown: the button is filled with the colour of its line. */
+.series-toggle[aria-pressed="true"] {
+  background: var(--series-colour, var(--brand-deep));
+  border-color: var(--series-colour, var(--brand-deep));
+  color: #ffffff;
+}
+
+/* Hidden: the colour stays, as an outline, so the button never loses identity. */
+.series-toggle[aria-pressed="false"] { background: #ffffff; }
+
+.series-toggle:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+
+/*
+ * Both correlations on ONE line, each still named by its source and each still
+ * showing r. Two separate paragraphs cost a whole line of chart.
+ */
+.caption-pair {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.caption-pair b { font-weight: 800; }
+.pair-sep { color: var(--line); padding: 0 0.35rem; }

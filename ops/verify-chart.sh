@@ -119,7 +119,7 @@ echo "page status     = ${G1_STATUS}"
 echo "points drawn    = ${G1_POINTS}"
 echo "answered from   = ${G1_SERVED}"
 echo "--- the page asked the API, so the API log shows the request ---"
-journalctl -u mobilelab-api --no-pager -n 40 -o cat 2>&1 | grep -oE 'GET /api/series/pair[^"]*' | tail -1
+journalctl -u mobilelab-api --no-pager -n 40 -o cat 2>&1 | grep -oE 'GET /api/series/(pair|multi)[^"]*' | tail -1
 echo "--- the chart canvas and both legend labels are in the DOM ---"
 grep -oE '<canvas[^>]*id="chart"[^>]*>' "${WORK}/g1.html" | head -1
 grep -oE 'rain rainfall|water salinity' "${WORK}/g1.html" | sort -u

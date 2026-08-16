@@ -5,7 +5,18 @@
  * runs the same code the demo screen runs. A test of a copy proves nothing.
  */
 
-const VALID_HINTS = new Set(["solid", "dashed"]);
+/*
+ * The hints a series may carry.
+ *
+ * "stepped" arrived with the public record. A cell average is one number for a
+ * whole grid cell across a whole bucket, so it draws flat across the bucket. A
+ * sloping line would claim the value moved smoothly between two readings, and
+ * a cell average makes no such claim.
+ *
+ * Adding a hint does NOT loosen the fail closed rule. Anything outside this set
+ * is still unknown provenance, and unknown still means not real.
+ */
+const VALID_HINTS = new Set(["solid", "dashed", "stepped"]);
 
 export const STRONG = 0.7;
 export const MODERATE = 0.4;
@@ -17,10 +28,10 @@ export const MODERATE = 0.4;
  * failure it guards against is fake data that looks real.
  *
  * A series is drawn as real ONLY when the API states so in the exact shape we
- * expect: is_real is a true boolean, and render_hint is the string "solid" or
- * "dashed". Anything else, including a missing field, a null, a number, or the
- * string "SOLID" in the wrong case, means we do not know. Unknown provenance is
- * treated as NOT real and draws dashed with the banner up.
+ * expect: is_real is a true boolean, and render_hint is one of "solid",
+ * "dashed", or "stepped". Anything else, including a missing field, a null, a
+ * number, or the string "SOLID" in the wrong case, means we do not know.
+ * Unknown provenance is treated as NOT real and draws dashed with the banner up.
  */
 export function classifyProvenance(series) {
   const source = series && series.source ? String(series.source) : "unknown";
@@ -37,6 +48,7 @@ export function classifyProvenance(series) {
       trusted: false,
       isReal: false,
       dashed: true,
+      stepped: false,
       reason: "The provenance is missing or malformed. This is treated as not real.",
     };
   }
@@ -46,6 +58,7 @@ export function classifyProvenance(series) {
     trusted: true,
     isReal: isRealRaw === true,
     dashed: hint === "dashed" || isRealRaw !== true,
+    stepped: hint === "stepped",
     reason: isRealRaw === true ? "The API states this is real." : "The API states this is not real.",
   };
 }
@@ -227,6 +240,70 @@ export function shiftValues(values, steps) {
 }
 
 /*
+ * Give every series an axis, chosen by its unit.
+ *
+ * Two rainfall series share one axis because they are both millimetres.
+ * Comparing them on two different scales would be a lie, and the whole point of
+ * the comparison lane is that the two numbers are directly comparable.
+ *
+ * A third unit would get no axis of its own. That is a deliberate limit: the
+ * screen is 1024 by 600 and a third axis leaves no room for the chart.
+ */
+export function assignAxes(seriesList) {
+  const units = [];
+  return (seriesList || []).map((series) => {
+    const unit = series.unit || "";
+    let position = units.indexOf(unit);
+    if (position === -1) {
+      units.push(unit);
+      position = units.length - 1;
+    }
+    return position === 0 ? "y" : "y1";
+  });
+}
+
+/*
+ * Work out the fixed bounds for each axis, across EVERY series.
+ *
+ * This is what makes a toggle safe. Chart.js scales an axis to the data it can
+ * see, so hiding one series would rescale the axis and MOVE the lines that
+ * stayed. The salinity line would shift under the person's hand while they
+ * revealed another series, and the lesson would look like a bug.
+ *
+ * The bounds are computed once from all the data, hidden or not, so hiding a
+ * series cannot change where any other series is drawn.
+ */
+export function axisBounds(seriesList, axisIds, options) {
+  const settings = options || {};
+  const bounds = {};
+  (seriesList || []).forEach((series, index) => {
+    const axis = axisIds[index];
+    const values = settings.normalize
+      ? normalize(series.values.map((value) => (value === null ? null : Number(value))))
+      : series.values.map((value) => (value === null ? null : Number(value)));
+    for (const value of values) {
+      if (!Number.isFinite(value)) continue;
+      if (!bounds[axis]) bounds[axis] = { min: value, max: value };
+      if (value < bounds[axis].min) bounds[axis].min = value;
+      if (value > bounds[axis].max) bounds[axis].max = value;
+    }
+  });
+
+  for (const axis of Object.keys(bounds)) {
+    const span = bounds[axis].max - bounds[axis].min;
+    const pad = span > 0 ? span * 0.05 : 1;
+    /*
+     * Padding never takes the axis below zero when the data never goes below
+     * zero. Rainfall cannot be negative, and an axis that offers a reading of
+     * minus 0.2 mm teaches the wrong thing on a screen built to teach.
+     */
+    const floor = bounds[axis].min >= 0 ? 0 : bounds[axis].min - pad;
+    bounds[axis] = { min: Math.max(floor, bounds[axis].min - pad), max: bounds[axis].max + pad };
+  }
+  return bounds;
+}
+
+/*
  * Build the Chart.js datasets.
  *
  * The dash pattern comes from classifyProvenance, never straight from the
@@ -235,17 +312,29 @@ export function shiftValues(values, steps) {
 export function buildDatasets(payload, options) {
   const settings = options || {};
   const axisMillis = payload.axis.map((stamp) => new Date(stamp).getTime());
-  const colours = ["#08828c", "#d1622b"];
+  /*
+ * These colours now fill a button as well as draw a line, so each one must
+ * carry white text. Measured against white: #08828c 4.6 to 1, #b3521d 5.1 to 1,
+ * #6b3fa0 7.4 to 1. The orange was #d1622b, which reached only 3.8 to 1.
+ */
+  const colours = ["#08828c", "#b3521d", "#6b3fa0", "#7a5f14"];
+  const axisIds = settings.axisIds || assignAxes(payload.series);
+  const shiftKeys = settings.shiftKeys || [1];
+  const hidden = settings.hidden || {};
 
   const datasets = payload.series.map((series, index) => {
     const verdict = classifyProvenance(series);
     let values = series.values.map((value) => (value === null ? null : Number(value)));
 
-    if (index === 1 && settings.shiftSteps) values = shiftValues(values, settings.shiftSteps);
+    if (settings.shiftSteps && shiftKeys.includes(index)) {
+      values = shiftValues(values, settings.shiftSteps);
+    }
     if (settings.normalize) values = normalize(values);
 
+    const name = series.name || `${series.sensor} ${series.metric}`;
+
     return {
-      label: `${series.sensor} ${series.metric} (${series.unit || "no unit"})`,
+      label: `${name} (${series.unit || "no unit"})`,
       data: axisMillis.map((time, i) => ({ x: time, y: values[i] ?? null })),
       borderColor: colours[index % colours.length],
       backgroundColor: colours[index % colours.length],
@@ -253,10 +342,16 @@ export function buildDatasets(payload, options) {
       borderWidth: 2,
       pointRadius: 0,
       spanGaps: true,
-      yAxisID: settings.normalize ? "y" : index === 0 ? "y" : "y1",
+      /*
+       * A cell average holds its value for the whole bucket, so it steps at the
+       * start of the bucket and stays flat until the next one.
+       */
+      stepped: verdict.stepped ? "after" : false,
+      hidden: Boolean(hidden[series.key || index]),
+      yAxisID: settings.normalize ? "y" : axisIds[index],
       mobilelab: verdict,
     };
   });
 
-  return { axisMillis, datasets };
+  return { axisMillis, datasets, axisIds };
 }

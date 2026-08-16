@@ -33,25 +33,28 @@ tell() {
 clear
 cat <<'BANNER'
 ======================================================================
-        MOBILE LAB STATION - EYEWITNESS TEST, THE OVERLAY CHART
+      MOBILE LAB STATION - EYEWITNESS TEST, THE REHEARSAL RIG
 ======================================================================
 
-This is the demo screen. Open it in a browser on the Pi.
+This is the rehearsal rig for the lesson.
 
-This test does not draw the chart for you. It tells you what a correct
-chart looks like, so you can judge the real one with your own eyes.
+The chart holds three measurements on one clock:
+
+  Salinity     how salty the water is
+  NOAA         the public rainfall record for this area
+  Rain Gauge   the rainfall at this one spot
+
+You reveal them one at a time. This test tells you what a correct
+screen looks like at each step. Judge the real screen with your eyes.
+
+This test does not press the buttons for you.
 
 BANNER
 
 say "STEP 1. Open the chart."
-tell "Open a browser on the Pi. Type this address:"
+tell "The kiosk already shows it. From another computer, open:"
 echo
 tell "    ${BASE}/"
-echo
-tell "From another computer on the same network, use the same address."
-echo
-tell "The chart is a normal web page. It is not a kiosk. You can still"
-tell "reach the desktop, and you can close the browser at any time."
 echo
 tell "Checking that the page and the data are ready..."
 echo
@@ -63,136 +66,163 @@ import json,sys
 try: d=json.load(sys.stdin)
 except Exception: print('  the API did not answer'); raise SystemExit
 print('  the API says      ', d.get('status','unknown'))
-w=d.get('writer') or {}
-print('  writer stored     ', w.get('accepted_total','unknown'), 'readings this run')
-print('  writer refused    ', w.get('rejected_total','unknown'), 'readings this run')
 " 2>/dev/null
 
-say "STEP 2. What a correct chart looks like."
+say "STEP 2. What you see when it opens."
 cat <<'LOOK'
-  There are two panels of numbers on one screen.
+  All three lines are on screen. That is on purpose. The rig starts
+  with everything shown, so nothing hides by accident before a lesson.
 
-  THE CHART.
-    Two lines share one time axis. Time runs left to right.
-    The left edge shows the scale for rainfall, in millimetres.
-    The right edge shows the scale for salinity, in PSU.
-    Rainfall sits near zero most of the time, with a few tall spikes.
-    Salinity sits near 25 PSU, and it dips after each spike.
-    The dip always comes AFTER the spike, never before it.
+  Three large buttons sit under the chart:
 
-  THE CONTROLS.
-    A box changes the time range. Try 48 hours, 7 days, and 14 days.
-    A tick box normalizes both lines. Both then run from 0 to 1 on one
-    scale. Use it when the two units make one line look flat.
-    A slider moves the second line in time. A button jumps the slider
-    to the delay the station measured.
+      Salinity     NOAA     Rain Gauge
 
-  THE TABLE.
-    A row for each line. It names the measurement, the source, whether
-    the numbers are real, and how the line is drawn.
+  Each button is filled in. A filled button means the line is shown.
+  Each button carries a small square in the colour of its own line.
+
+  The left edge of the chart shows salinity, in PSU.
+  The right edge shows rainfall, in millimetres.
+  BOTH rainfall lines share that one right edge. They must, because
+  they measure the same thing in the same unit. That is what makes
+  them comparable.
+
+  A magenta badge in the top bar reads SIMULATED DATA.
 LOOK
 
-say "STEP 3. What the SIMULATED badge must look like."
-cat <<'BANNER2'
-  The badge is a MAGENTA PILL in the top bar, beside the Power button.
-  It reads SIMULATED DATA. It is on the page itself. It is not a
-  tooltip, and you do not have to hover over anything to see it.
+say "STEP 3. Show Salinity alone."
+cat <<'LOOK'
+  Press the NOAA button. Its line goes away. The button empties.
+  Press the Rain Gauge button. Its line goes away too.
 
-  Tap it. A box opens and reads:
+  Only salinity is left.
 
-      Simulated data. Not a measurement.
-      A generator made these numbers. Do not use them as evidence
-      about any real place.
+  WATCH THE SALINITY LINE WHILE YOU DO THIS.
 
-  Both lines are DASHED while that badge is up. A dashed line means
-  the station cannot vouch for the numbers.
+  It must NOT move. Not up, not down, not sideways. The numbers on
+  the left edge must not change. The chart must look like somebody
+  rubbed out two lines, and nothing else.
 
-  The badge appears whenever ANY line is not real. It also appears
-  when the station cannot tell whether a line is real. Unknown counts
-  as not real. That is on purpose.
+  This is the reason the rig is built this way. A salinity line that
+  jumps when you hide another line shows a student a change that did
+  not happen in the water.
+LOOK
 
-  When real sensor data arrives one day, that line draws SOLID, and
-  the badge goes away only if every line on the screen is real.
-BANNER2
+say "STEP 4. Add NOAA."
+cat <<'LOOK'
+  Press the NOAA button again.
 
-say "STEP 4. What the caption should say."
-cat <<'CAPTION'
-  Under the chart, in large text, you should read something close to:
+  A second line appears, in orange, against the right edge.
 
-      When rainfall rises, salinity falls about 6 hours later.
-      The relationship is strong. r = -0.86.
+  It is SMOOTH and LOW. It rises and falls slowly, across a day or
+  more. It has no sharp peaks.
 
-  Read the number of hours. It should say about 6 hours.
+  Look closely. It is drawn in STEPS. It holds one value flat for a
+  whole hour. Then it steps to the next value. That is honest
+  drawing. The public number is one figure for a whole area for a
+  whole hour. It is not a reading from one place at one moment.
 
-  Why this matters. The station does NOT find that answer by comparing
-  the tallest spike with the deepest dip. That method answers 7 hours,
-  and it is wrong. Rain keeps falling after its own peak, so the water
-  keeps getting fresher for a while.
+  A line of text appears under the chart:
 
-  Instead the station slides one line against the other, hour by hour,
-  and keeps the shift where the two match best. That method answers
-  6 hours, which is the delay built into the test data.
+      NOAA against Salinity, from public_synthetic.
+      The relationship is weak. r = 0.31 at about 3 hours.
 
-  The word "about" is honest. It is an estimate, not a measurement.
+  WEAK is the correct answer. The public record does not explain the
+  salinity. Say that out loud during the lesson.
 
-  Under that, a second line changes as you drag the slider:
+  The salinity line still has not moved.
+LOOK
 
-      You are looking at a shift of 6 hours. At this shift the
-      relationship is strong. r = -0.86.
+say "STEP 5. Add Rain Gauge."
+cat <<'LOOK'
+  Press the Rain Gauge button.
 
-  Drag the slider to 0. The relationship becomes weak, near r = 0.01.
-  Drag it back to 6. It becomes strong again. That is the lesson.
+  A third line appears, in purple, against the same right edge.
 
-  At the bottom, always on screen:
+  It looks NOTHING like the NOAA line. It is spiky. It sits near zero.
+  Then it jumps to a tall peak, several times taller than anything
+  NOAA shows. It is drawn as a continuous line, not in steps.
+
+  A second line of text appears:
+
+      Rain Gauge against Salinity, from synthetic.
+      The relationship is strong. r = -0.86 at about 6 hours.
+
+  STRONG. The headline above now reads:
+
+      When Rain Gauge rises, Salinity falls about 6 hours later.
+
+  THIS IS THE LESSON. Two rainfall numbers cover the same place and
+  the same hours. One explains the salinity. One does not.
+
+  The public record is not wrong. It reports an average across
+  kilometres, so it cannot see a storm over one street. Nobody
+  measures at this resolution. That gap is the opportunity.
+
+  At the bottom, always:
 
       CORRELATION IS NOT CAUSATION.
+LOOK
 
-  That text is permanent. It never hides.
-CAPTION
+say "STEP 6. Two controls worth showing."
+cat <<'LOOK'
+  Press "Measured delay". The slider jumps to the delay the station
+  measured, which is about 6 hours.
 
-say "STEP 5. Six things that mean STOP."
+  Drag the slider to 0. The relationship becomes weak. Drag it back
+  to 6. It becomes strong again.
+
+  The station does NOT find 6 hours by comparing the tallest spike
+  with the deepest dip. That method answers 7 hours, and it is wrong.
+  Rain keeps falling after its own peak.
+
+  Press "Where from". It lists every line, its source, and whether
+  the station calls it real.
+LOOK
+
+say "SIX THINGS THAT MEAN STOP."
 cat <<'STOP'
-  1. A line is drawn SOLID while the SIMULATED badge is up.
-     Fake data is pretending to be real. This is the worst fault on
-     this list. Stop the demo and report it.
+  1. The salinity line MOVES when you hide or show another line.
+     A student reads that as a change in the water. It is not one.
+     Stop and report it.
 
-  2. The SIMULATED badge is missing while the table says NOT REAL.
-     Same fault, seen from the other side.
+  2. A line is drawn SOLID while the SIMULATED badge is up.
+     Fake data pretends to be real. This is the worst fault on this
+     list. Stop the rehearsal.
 
-  3. The caption says about 7 hours, or about 0 hours.
-     The delay finder is broken, or the data did not load. The whole
-     teaching point rests on that number.
+  3. The NOAA line has a sharp spike, or it matches the Rain Gauge
+     line. The rig is broken. The lesson needs those two lines to
+     DISAGREE.
 
-  4. The salinity dip comes BEFORE the rain spike, or there is no dip.
-     The time axis is wrong, or the two lines are misaligned.
+  4. The NOAA relationship reads strong, or the Rain Gauge
+     relationship reads weak. The two are the wrong way round. The
+     lesson then teaches the opposite of the truth.
 
-  5. The words CORRELATION IS NOT CAUSATION are missing.
-     A data literacy tool must carry its own caveat.
+  5. Only one correlation is reported for rainfall. Each rainfall
+     line must get its own r, and its own source named.
 
-  6. The page says it could not get the data, or the chart is empty.
-     The API or the writer has stopped. Check with:
-       systemctl status mobilelab-api
-       systemctl status mobilelab-writer
-       journalctl -u mobilelab-writer -n 50
+  6. The words CORRELATION IS NOT CAUSATION are missing. Or a button
+     carries an act number instead of the name of a measurement.
 STOP
 
-say "STEP 6. Two extra pages, if you want them."
-tell "The chart self test. It feeds the chart broken data on purpose and"
-tell "shows that the chart refuses to draw it as real:"
+say "What is real here, and what is not."
+tell "A seeded generator made every number on this rig. Nothing on this"
+tell "screen is a measurement yet."
 echo
-tell "    ${BASE}/selftest"
+tell "The SIMULATED badge says that. It stays up on its own while any"
+tell "line comes from a generator."
 echo
-tell "The API documentation. Every question the chart asks is listed here,"
-tell "and you can run each one from the page:"
-echo
-tell "    ${BASE}/docs"
+tell "The badge reads the label, not the name of a line. A real figure"
+tell "replaces a series, that series draws solid, and the badge clears"
+tell "itself. No code changes."
 echo
 
-say "Notes."
-tell "The numbers on the screen are test data. No real sensor exists yet."
-tell "The station makes them from a seed, so the chart shows the same"
-tell "shape every time. That is why the badge must stay up."
+say "The test is finished."
+tell "To run it again, type:"
+tell "  ${SCRIPT_DIR}/eyewitness-chart.sh"
 echo
 tell "To run the automatic checks instead of your eyes, type:"
-tell "  sudo ${SCRIPT_DIR}/verify-chart.sh"
+tell "  sudo ${SCRIPT_DIR}/verify-rehearsal.sh"
+echo
+tell "To rebuild the rig data, type:"
+tell "  sudo ${SCRIPT_DIR}/seed-rehearsal.sh"
 echo

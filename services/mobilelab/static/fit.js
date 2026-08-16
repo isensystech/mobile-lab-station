@@ -14,6 +14,21 @@ function reportFit() {
   document.body.dataset.overflowY = String(Math.max(0, overflowY));
   document.body.dataset.overflowX = String(Math.max(0, overflowX));
   document.body.dataset.fits = String(overflowY <= 1 && overflowX <= 1);
+
+  /*
+   * Report how the space under the bar is split. The chart is meant to hold
+   * eight tenths of it. A number here means nobody has to judge that by eye.
+   */
+  var chartPanel = document.querySelector(".chart-panel");
+  var controlPanel = document.querySelector(".control-panel");
+  if (chartPanel && controlPanel) {
+    var chartH = Math.round(chartPanel.getBoundingClientRect().height);
+    var controlH = Math.round(controlPanel.getBoundingClientRect().height);
+    var totalH = chartH + controlH;
+    document.body.dataset.chartHeight = String(chartH);
+    document.body.dataset.controlHeight = String(controlH);
+    document.body.dataset.chartShare = totalH ? (chartH / totalH).toFixed(3) : "0";
+  }
 }
 
 window.addEventListener("load", () => setTimeout(reportFit, 900));

@@ -79,13 +79,39 @@ body {
  * It is the white version, made for a dark bar, which is what this bar is.
  */
 .brand { display: flex; align-items: center; flex: 0 0 auto; }
-.brand-lockup { height: 30px; width: auto; display: block; }
+/*
+ * The lockup is nudged up by one pixel.
+ *
+ * Measured, not guessed. On the 1024 by 600 panel the white of the wordmark
+ * ran from row 20 to row 30, and "Mobile Lab" ran from row 19 to row 29. The
+ * artwork carries a little more space under its letters than above them, so
+ * centring the box leaves the letters low.
+ */
+.brand-lockup {
+  height: 30px;
+  width: auto;
+  display: block;
+  position: relative;
+  top: -1px;
+}
 .brand-product {
   font-size: 0.98rem;
   font-weight: 700;
   white-space: nowrap;
   padding-left: 0.6rem;
   margin-left: 0.2rem;
+  /* The product name needs room before the navigation starts. */
+  margin-right: 0.9rem;
+  /*
+   * Sit on the logo baseline.
+   *
+   * Measured on the panel: the wordmark letters end at row 30, and this text
+   * ended at row 29, so it floated one pixel high. The wordmark is 12 px tall
+   * against 11 px here, so the tops cannot match as well as the baselines. The
+   * baseline is the one that reads.
+   */
+  position: relative;
+  top: 1px;
   border-left: 1px solid rgba(255, 255, 255, 0.35);
 }
 .bar .sub { display: none; }
@@ -124,36 +150,40 @@ body {
  * because a screenshot of fake data that looks real is the failure this rule
  * exists to prevent. Tapping it opens the full wording.
  */
-.sim-badge {
-  background: var(--sim-bg);
-  color: var(--sim-ink);
-  border: 2px solid #ffffff;
+/*
+ * The badge and the power control are the same kind of thing: one small pill at
+ * the right of the bar. They read as one family, so they share every measure.
+ * Only the colour differs, because only the meaning differs.
+ */
+.sim-badge,
+.bar-power {
+  min-height: 36px;
+  padding: 0 0.85rem;
   border-radius: 999px;
-  padding: 0 0.7rem;
-  min-height: 34px;
+  border: 2px solid transparent;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  cursor: pointer;
   white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sim-badge {
+  background: var(--sim-bg);
+  color: var(--sim-ink);
+  border-color: #ffffff;
 }
 .sim-badge::before { content: "\25CF"; font-size: 0.7rem; }
 .sim-hidden { display: none; }
 
 .bar-power {
-  min-height: 34px;
-  padding: 0 0.8rem;
-  border-radius: 999px;
-  border: 1px solid #6b3a3a;
   background: #3a2020;
   color: #f2d6d6;
-  font-size: 0.86rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
+  border-color: #8a4a4a;
 }
 .bar-power:hover { background: #4c2a2a; }
 
@@ -161,10 +191,10 @@ body {
 .shell {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 0.5rem;
+  padding: 0.35rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
   overflow: hidden;
 }
 
