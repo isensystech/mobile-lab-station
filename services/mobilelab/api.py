@@ -1106,6 +1106,33 @@ LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 POWER_DELAY_SECONDS = 2.0
 
 
+def _power_check(action: str) -> tuple[bool, str]:
+    """Ask whether this process may run the power command, without running it.
+
+    "sudo -l COMMAND" answers the question and does nothing else. It walks the
+    same setuid path as the real call, so everything that would stop the real
+    call stops this too, and it cannot switch the station off while it asks.
+
+    This exists because the failure it catches is invisible from the outside.
+    The command runs in a background thread AFTER the answer has already gone
+    to the screen, so a broken station returned 200 OK and the button said
+    "Done" while nothing happened. Now the question is asked first.
+    """
+    try:
+        done = subprocess.run(
+            ["sudo", "-n", "-l", "/usr/bin/systemctl", action],
+            capture_output=True,
+            timeout=10,
+            text=True,
+        )
+    except Exception as exc:
+        return False, str(exc)
+    if done.returncode == 0:
+        return True, done.stdout.strip()
+    return False, (done.stderr.strip() or done.stdout.strip() or
+                   f"sudo refused, exit status {done.returncode}")
+
+
 def _power_command(action: str) -> None:
     """Run the power command after a short pause.
 
@@ -1120,6 +1147,11 @@ def _power_command(action: str) -> None:
             capture_output=True,
             timeout=30,
         )
+    except subprocess.CalledProcessError as exc:
+        # Carry sudo's own words into the log. Without this the log said only
+        # "returned non-zero exit status 1", which names no cause at all.
+        detail = (exc.stderr or b"").decode(errors="replace").strip()
+        log.error("the %s command failed: %s: %s", action, exc, detail)
     except Exception as exc:
         log.error("the %s command failed: %s", action, exc)
 
@@ -1145,13 +1177,46 @@ def _require_local(request: Request, action: str) -> str:
     return client
 
 
+def _start_power(action: str, command: str, message: str, request: Request) -> dict:
+    """Check the command can run, answer, then run it.
+
+    The order matters. The check happens BEFORE the answer, so the screen can
+    never report a stop that the station cannot perform.
+    """
+    client = _require_local(request, action)
+    ready, detail = _power_check(command)
+    if not ready:
+        log.error("%s requested from %s, but this station cannot %s: %s",
+                  action, client, command, detail)
+        raise HTTPException(
+            503,
+            f"This station cannot {action} itself. The {command} command is not "
+            f"available to the API: {detail}",
+        )
+    log.warning("%s requested from %s. The station acts in %.0f seconds.",
+                action, client, POWER_DELAY_SECONDS)
+    threading.Thread(target=_power_command, args=(command,), daemon=True).start()
+    return {"action": action, "in_seconds": POWER_DELAY_SECONDS, "message": message}
+
+
 @app.get("/api/power")
 def power_state() -> dict:
-    """What the power control can do, and who may use it."""
+    """What the power control can do, and who may use it.
+
+    "ready" is the part a gate can test. It proves the API can really stop the
+    station, and it proves it without stopping the station.
+    """
+    shutdown_ready, shutdown_detail = _power_check("poweroff")
+    restart_ready, restart_detail = _power_check("reboot")
     return {
         "actions": ["shutdown", "restart"],
         "local_only": True,
         "note": "These work from the station screen only. See README, Kiosk.",
+        "ready": {
+            "shutdown": shutdown_ready,
+            "restart": restart_ready,
+            "detail": shutdown_detail if shutdown_ready else f"shutdown: {shutdown_detail}",
+        },
         "hardware_button": {
             "present": True,
             "device": "pwr_button, the Pi 5 onboard button",
@@ -1163,27 +1228,20 @@ def power_state() -> dict:
 @app.post("/api/power/shutdown")
 def power_shutdown(request: Request) -> dict:
     """Shut the station down cleanly. Architecture section 9."""
-    client = _require_local(request, "shutdown")
-    log.warning("shutdown requested from %s. The station stops in %.0f seconds.",
-                client, POWER_DELAY_SECONDS)
-    threading.Thread(target=_power_command, args=("poweroff",), daemon=True).start()
-    return {
-        "action": "shutdown",
-        "in_seconds": POWER_DELAY_SECONDS,
-        "message": "The station is shutting down. Wait for the screen to go dark, then unplug it.",
-    }
+    return _start_power(
+        "shutdown", "poweroff",
+        "The station is shutting down. Wait for the screen to go dark, then unplug it.",
+        request,
+    )
 
 
 @app.post("/api/power/restart")
 def power_restart(request: Request) -> dict:
-    client = _require_local(request, "restart")
-    log.warning("restart requested from %s", client)
-    threading.Thread(target=_power_command, args=("reboot",), daemon=True).start()
-    return {
-        "action": "restart",
-        "in_seconds": POWER_DELAY_SECONDS,
-        "message": "The station is restarting. The chart returns on its own.",
-    }
+    return _start_power(
+        "restart", "reboot",
+        "The station is restarting. The chart returns on its own.",
+        request,
+    )
 
 
 @app.websocket("/ws/live")

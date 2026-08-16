@@ -18,7 +18,16 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=mobilelab-api
 
-NoNewPrivileges=true
+# NoNewPrivileges is deliberately NOT set here.
+#
+# The power control runs "sudo -n /usr/bin/systemctl poweroff". sudo is setuid,
+# and NoNewPrivileges forbids setuid by design, so sudo refuses before it ever
+# reads the policy. The flag was set here, the API returned 200 OK, the screen
+# said "Done", and the station stayed on. The button lied.
+#
+# The grant is still narrow. /etc/sudoers.d/mobilelab-power allows this user two
+# exact commands, poweroff and reboot, and nothing else. Every other sandbox
+# setting below stays on and was measured to work with sudo.
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict

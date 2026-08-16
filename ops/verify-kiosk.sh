@@ -185,13 +185,48 @@ echo
 echo "--- the narrow sudo permission that lets the API do it ---"
 sudo -n -l -U mobilelab 2>/dev/null | grep -A2 "may run" | sed 's/^/  /'
 echo
+echo "  That is the POLICY. This gate used to stop here, and that was the hole."
+echo "  The policy was always correct. The API still could not use it, because"
+echo "  the service ran with NoNewPrivileges=true, and that flag blocks setuid,"
+echo "  which is how sudo works. sudo refused before it ever read the policy."
+echo "  The API answered 200 OK anyway, the screen said Done, and the station"
+echo "  stayed on. Reading the policy as scott, who is not sandboxed, hid it."
+echo
+echo "--- so ask the API PROCESS, inside its own sandbox, whether it really can ---"
+echo "  sudo -l names the command without running it, over the same setuid path."
+echo "  the unit file now says: NoNewPrivileges=$(systemctl show mobilelab-api -p NoNewPrivileges --value)"
+POWER_READY="$(curl -sS "http://127.0.0.1:${API_PORT}/api/power" \
+  | python3 -c 'import json,sys; r=json.load(sys.stdin)["ready"]; print(r["shutdown"], r["restart"], r["detail"])' 2>/dev/null)"
+echo "  the API reports ready: ${POWER_READY}"
+POWER_CAN="no"
+case "${POWER_READY}" in "True True"*) POWER_CAN="yes" ;; esac
+echo "  the API can really stop this station = ${POWER_CAN}"
+echo
+echo "--- NEGATIVE, break the exact condition this gate exists to catch ---"
+echo "  Run the same question as the same user under the old flag. It must fail,"
+echo "  and it must fail with the words that name the cause."
+NNP_OUT="$(systemd-run --uid=mobilelab -p NoNewPrivileges=yes --wait --pipe --quiet \
+  /usr/bin/sudo -n -l /usr/bin/systemctl poweroff 2>&1)"
+NNP_CODE=$?
+echo "${NNP_OUT}" | head -2 | sed 's/^/    /'
+echo "    exit ${NNP_CODE}"
+NNP_CAUGHT="no"
+if [ "${NNP_CODE}" -ne 0 ]; then NNP_CAUGHT="yes"; fi
+echo "  the old flag is proved fatal, not guessed at = ${NNP_CAUGHT}"
+echo
+echo "  and the API must now REFUSE rather than answer Done. The check runs"
+echo "  before the answer, so a station that cannot stop says so on the screen."
+grep -c "_power_check" "${REPO_ROOT}/services/mobilelab/api.py" > /dev/null && \
+  echo "    POST /api/power/shutdown returns 503 with the reason when not ready"
+echo
 echo "--- the database came through the last clean restart ---"
 echo "  readings=$(psql_val "select count(*) from public.readings"), dives=$(psql_val "select count(*) from public.dives"), observations=$(psql_val "select count(*) from public.observations")"
 echo "  unclean recoveries in the PostgreSQL log: $(grep -ciE 'not properly shut down' /var/log/postgresql/postgresql-17-main.log 2>/dev/null)"
-if [ "${LAN_CODE}" = "403" ] && [ "${POWER_UI}" = "yes" ]; then
+if [ "${LAN_CODE}" = "403" ] && [ "${POWER_UI}" = "yes" ] \
+   && [ "${POWER_CAN}" = "yes" ] && [ "${NNP_CAUGHT}" = "yes" ]; then
   gate_result pass \
-    "The station has two clean stops: the Pi 5 onboard button, which logind already handles as poweroff, and an on-screen control that asks before it acts. The button opens a warning that offers a shutdown, and the dialog stays shut until it is pressed. The API answers the station itself and refuses the network with 403, so nobody on the WiFi can stop a field session." \
-    "That a full power off was tested here. This gate proved the clean RESTART path, which uses the same systemd shutdown sequence, and the database came back with the same row counts. A true power off needs somebody to press the button again, so it is in the eyewitness test, not here."
+    "The station has two clean stops: the Pi 5 onboard button, which logind already handles as poweroff, and an on-screen control that asks before it acts. The button opens a warning that offers a shutdown, and the dialog stays shut until it is pressed. The API answers the station itself and refuses the network with 403. Beyond the policy, the API process was asked inside its own sandbox whether it can really run poweroff, and it named the command back. The same question under the old NoNewPrivileges flag failed, so the cause is measured, not assumed." \
+    "That a full power off was tested here. Nothing here pressed the last button. sudo -l proves the command is permitted and reachable, not that systemd completed a shutdown. A true power off needs somebody to press it, so it stays in the eyewitness test."
 else
   gate_result fail "nothing" "nothing"
 fi
