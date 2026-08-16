@@ -11,8 +11,17 @@
 <body data-status="loading">
 
 <header class="bar">
+  <!--
+    The mark opens the About card. The wordmark still goes to the chart.
+    They were one image before, so the mark had nowhere of its own to be
+    pressed.
+  -->
+  <button type="button" id="about-open" class="brand-mark"
+          title="About this station" aria-label="About this station">
+    <img src="/static/brand/planetwerx-mark.png" alt="">
+  </button>
   <a class="brand" href="/" title="PlanetWerx">
-    <img class="brand-lockup" src="/static/brand/planetwerx-lockup-white.png" alt="PlanetWerx">
+    <img class="brand-lockup" src="/static/brand/planetwerx-wordmark-white.png" alt="PlanetWerx">
   </a>
   <span class="brand-product">Sensors</span>
   <nav class="nav">
@@ -64,7 +73,30 @@
 
 </main>
 
+<div id="about-panel" class="modal modal-hidden" role="dialog" aria-modal="true"
+     aria-labelledby="about-title">
+  <div class="modal-card about-card">
+    <div class="about-head">
+      <img class="about-lockup" src="/static/brand/planetwerx-lockup-white.png" alt="PlanetWerx">
+    </div>
+    <h2 id="about-title" class="about-product">Mobile Lab Station</h2>
+    <p class="about-line">Created by iSENSYS for Planetwerx</p>
+    <dl class="about-credits">
+      <div><dt>Project Lead, Mechanical</dt><dd>Jessica Foley</dd></div>
+      <div><dt>Codebase and UX</dt><dd>Scott McLeslie</dd></div>
+      <div><dt>User Interface</dt><dd>Katrin Barshe</dd></div>
+    </dl>
+    <p class="about-copyright">
+      Copyright &copy; 2026 iSENSYS / Planetwerx.<br>All rights reserved.
+    </p>
+    <div class="modal-actions">
+      <button type="button" id="about-close" class="btn">Close</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="/static/sensors.js"></script>
+<script src="/static/about.js"></script>
 <script src="/static/fit.js"></script>
 </body>
 </html>

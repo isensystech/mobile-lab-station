@@ -21,8 +21,20 @@ const result = document.getElementById("power-result");
 
 let closeTimer = null;
 
+/*
+ * The dialog uses the shared modal classes, the same as every other popup on
+ * this screen.
+ *
+ * It used to add and remove a class called power-hidden. That class does not
+ * exist in the stylesheet. The refactor to 1024 by 600 moved this dialog onto
+ * the shared .modal pattern and this file was not moved with it, so the button
+ * ran, removed a class that was never there, and the dialog stayed hidden
+ * behind .modal-hidden. The button appeared dead.
+ */
+const HIDDEN = "modal-hidden";
+
 function show() {
-  panel.classList.remove("power-hidden");
+  panel.classList.remove(HIDDEN);
   result.textContent = "";
   document.body.dataset.powerPanel = "open";
   /* If nobody answers, close it again. An open dialog on a demo screen is a bug. */
@@ -31,7 +43,7 @@ function show() {
 }
 
 function hide() {
-  panel.classList.add("power-hidden");
+  panel.classList.add(HIDDEN);
   document.body.dataset.powerPanel = "closed";
   clearTimeout(closeTimer);
 }
@@ -69,4 +81,17 @@ if (openButton) {
   confirmButton.addEventListener("click", () => send("shutdown", confirmButton));
   restartButton.addEventListener("click", () => send("restart", restartButton));
   document.body.dataset.powerPanel = "closed";
+
+  /*
+   * power=ask opens the dialog, the same as a tap on the button.
+   *
+   * A headless browser cannot tap, and a gate has to prove this button opens
+   * something. It stops exactly where a person stops: at the question. It never
+   * shuts anything down, because that still needs the second press.
+   *
+   * The lag slider carries the same kind of hook, for the same reason.
+   */
+  if (new URLSearchParams(window.location.search).get("power") === "ask") {
+    show();
+  }
 }

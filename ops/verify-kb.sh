@@ -313,10 +313,34 @@ echo "knowledge to chart = ${K_TO_CHART}, sensors to chart = ${S_TO_CHART}"
 echo "--- the current page is marked, so a person knows where they are ---"
 grep -oE 'aria-current="page">[^<]*</a>' "${WORK}/offline-knowledge.html" | sed 's/^/  knowledge: /'
 grep -oE 'aria-current="page">[^<]*</a>' "${WORK}/offline-sensors.html" | sed 's/^/  sensors:   /'
+echo
+echo "--- the About card, on every page that carries the bar ---"
+echo "  The mark opens it. The wordmark still goes to the chart. A control that"
+echo "  works on one tab and looks dead on the other three is the fault the"
+echo "  power button had, so this is checked on all four."
+ABOUT_OK="yes"
+for page in "" entry knowledge sensors; do
+  DOM="$(render "http://127.0.0.1:${API_PORT}/${page}?about=show")"
+  STATE="$(echo "${DOM}" | grep -oE 'data-about-panel="[^"]*"' | head -1 | cut -d'"' -f2)"
+  NAMES="$(echo "${DOM}" | grep -cE 'Jessica Foley|Scott McLeslie|Katrin Barshe')"
+  printf "  /%-10s about=%-7s credit lines=%s\n" "${page}" "${STATE}" "${NAMES}"
+  [ "${STATE}" = "open" ] || ABOUT_OK="no"
+done
+SHUT="$(render "http://127.0.0.1:${API_PORT}/" | grep -oE 'data-about-panel="[^"]*"' | head -1 | cut -d'"' -f2)"
+echo "  with no press, the card is ${SHUT}"
+[ "${SHUT}" = "closed" ] || ABOUT_OK="no"
+echo "  what the card carries:"
+render "http://127.0.0.1:${API_PORT}/?about=show" \
+  | grep -oE 'Mobile Lab Station|Created by iSENSYS for Planetwerx|Jessica Foley|Scott McLeslie|Katrin Barshe|Copyright &copy; 2026 iSENSYS / Planetwerx.|All rights reserved.' \
+  | sed 's/&copy;/(c)/' | sed 's/^/    /'
+echo "  the mark opens the card everywhere, and it stays shut until pressed = ${ABOUT_OK}"
+echo
+
 if [ "${CHART_TO_K}" -ge 1 ] && [ "${CHART_TO_S}" -ge 1 ] \
-   && [ "${K_TO_CHART}" -ge 1 ] && [ "${S_TO_CHART}" -ge 1 ]; then
+   && [ "${K_TO_CHART}" -ge 1 ] && [ "${S_TO_CHART}" -ge 1 ] \
+   && [ "${ABOUT_OK}" = "yes" ]; then
   gate_result pass \
-    "The chart page links to both new pages, and both link back to the chart and to each other. One navigation bar lives in the shared stylesheet, and every page marks itself with aria-current so a person knows where they are." \
+    "The chart page links to both new pages, and both link back to the chart and to each other. One navigation bar lives in the shared stylesheet, and every page marks itself with aria-current so a person knows where they are. The brand mark opens the About card on all four pages, and the card stays shut until it is pressed." \
     "That a person can get out of the kiosk browser. These are ordinary links in an ordinary browser. Chromium kiosk mode is deliberately not configured yet, and how a student leaves a page in kiosk mode is still an open question in section 9."
 else
   gate_result fail "nothing" "nothing"

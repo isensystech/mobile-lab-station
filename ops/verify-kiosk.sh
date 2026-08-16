@@ -31,6 +31,12 @@ as_kiosk() {
   runuser -u "${KIOSK_USER}" -- env XDG_RUNTIME_DIR="${RUNTIME}" WAYLAND_DISPLAY=wayland-0 "$@"
 }
 psql_val() { runuser -u postgres -- psql -t -A -d "${DB_NAME}" -c "$1" 2>&1 | tr -d '[:space:]'; }
+
+render() {
+  runuser -u scott -- env HOME=/home/scott timeout 90 chromium \
+    --headless --disable-gpu --no-sandbox --hide-scrollbars \
+    --window-size=1024,600 --virtual-time-budget=12000 --dump-dom "$1" 2> /dev/null
+}
 gate_header() {
   echo; echo "================================================================"
   echo "GATE $1: $2"; echo "================================================================"
@@ -153,15 +159,38 @@ LAN_CODE="$(curl -sS -o /tmp/lan.json -w '%{http_code}' -X POST "http://${LAN_IP
 echo "    POST from ${LAN_IP} returned ${LAN_CODE}"
 head -c 200 /tmp/lan.json 2>/dev/null | sed 's/^/    /'
 echo
+echo "--- the dialog on the screen, which is what a person actually touches ---"
+echo "  The API guard above was always right. The BUTTON was not. It toggled a"
+echo "  class called power-hidden, which no stylesheet defines, so the dialog"
+echo "  stayed behind modal-hidden and the button looked dead. Every gate here"
+echo "  tested the API and none tested the dialog, so nothing caught it."
+echo
+POWER_CLOSED="$(render "http://127.0.0.1:${API_PORT}/" | grep -oE 'data-power-panel="[^"]*"' | head -1 | cut -d'"' -f2)"
+POWER_OPEN_DOM="$(render "http://127.0.0.1:${API_PORT}/?power=ask")"
+POWER_OPEN="$(echo "${POWER_OPEN_DOM}" | grep -oE 'data-power-panel="[^"]*"' | head -1 | cut -d'"' -f2)"
+POWER_CLASS="$(echo "${POWER_OPEN_DOM}" | grep -oE 'id="power-panel" class="[^"]*"' | head -1)"
+echo "  with no press, the dialog is  ${POWER_CLOSED}"
+echo "  after a press, the dialog is  ${POWER_OPEN}"
+echo "  the panel element then reads  ${POWER_CLASS}"
+echo "  what it offers:"
+echo "${POWER_OPEN_DOM}" | grep -oE 'Stop the station\?|Yes, shut down|Restart instead|Cancel' | sed 's/^/    /'
+POWER_UI="no"
+if [ "${POWER_CLOSED}" = "closed" ] && [ "${POWER_OPEN}" = "open" ] \
+   && echo "${POWER_OPEN_DOM}" | grep -q "Yes, shut down"; then
+  POWER_UI="yes"
+fi
+echo "  the button opens a warning that offers a shutdown = ${POWER_UI}"
+echo
+
 echo "--- the narrow sudo permission that lets the API do it ---"
 sudo -n -l -U mobilelab 2>/dev/null | grep -A2 "may run" | sed 's/^/  /'
 echo
 echo "--- the database came through the last clean restart ---"
 echo "  readings=$(psql_val "select count(*) from public.readings"), dives=$(psql_val "select count(*) from public.dives"), observations=$(psql_val "select count(*) from public.observations")"
 echo "  unclean recoveries in the PostgreSQL log: $(grep -ciE 'not properly shut down' /var/log/postgresql/postgresql-17-main.log 2>/dev/null)"
-if [ "${LAN_CODE}" = "403" ]; then
+if [ "${LAN_CODE}" = "403" ] && [ "${POWER_UI}" = "yes" ]; then
   gate_result pass \
-    "The station has two clean stops: the Pi 5 onboard button, which logind already handles as poweroff, and an on-screen control that asks before it acts. The on-screen control answers the station itself and refuses the network with 403, so nobody on the WiFi can stop a field session." \
+    "The station has two clean stops: the Pi 5 onboard button, which logind already handles as poweroff, and an on-screen control that asks before it acts. The button opens a warning that offers a shutdown, and the dialog stays shut until it is pressed. The API answers the station itself and refuses the network with 403, so nobody on the WiFi can stop a field session." \
     "That a full power off was tested here. This gate proved the clean RESTART path, which uses the same systemd shutdown sequence, and the database came back with the same row counts. A true power off needs somebody to press the button again, so it is in the eyewitness test, not here."
 else
   gate_result fail "nothing" "nothing"
