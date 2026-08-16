@@ -22,6 +22,7 @@ import csv
 import io
 import json
 import logging
+import subprocess
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -31,14 +32,14 @@ from typing import Any, Literal
 
 import paho.mqtt.client as mqtt
 import psycopg
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
-from . import __version__, entry, metrics, topics
+from . import __version__, entry, kb, metrics, suite, topics
 from .config import load_settings
 from .record import CLOCK_FLOOR, CLOCK_FUTURE_LIMIT, parse_topic
 from .series import (
@@ -368,6 +369,25 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+@app.middleware("http")
+async def no_stale_screen(request: Request, call_next):
+    """Never let the kiosk show a stale screen after a deploy.
+
+    The kiosk browser runs for days and caches what it is given. A deploy that
+    changes the stylesheet or a script would then reach the database and the API
+    but not the glass, and the screen would keep the old look with no clue why.
+
+    The station serves one browser on the same machine, so caching buys nothing
+    and costs confusion.
+    """
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/static") or path in ("/", "/chart", "/entry", "/knowledge", "/sensors", "/selftest"):
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 @app.get("/", include_in_schema=False)
 def chart_page() -> FileResponse:
     """The demo screen. A person who types the bare address wants the chart."""
@@ -389,6 +409,93 @@ def selftest_page() -> FileResponse:
 def entry_page() -> FileResponse:
     """The manual entry form. This is the data collection instrument."""
     return FileResponse(STATIC_DIR / "entry.html")
+
+
+@app.get("/knowledge", include_in_schema=False)
+def knowledge_page() -> FileResponse:
+    """The shell. The article text comes from the markdown, through the API."""
+    return FileResponse(STATIC_DIR / "knowledge.html")
+
+
+@app.get("/sensors", include_in_schema=False)
+def sensors_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "sensors.html")
+
+
+@app.get("/api/kb")
+def list_kb() -> list[dict]:
+    """Every article on disk, read fresh."""
+    return [article.as_dict() for article in kb.list_articles()]
+
+
+@app.get("/api/kb/{slug}")
+def one_kb_article(slug: str) -> dict:
+    """Render one article from its markdown file, right now.
+
+    Nothing is cached. Edit the file, reload the page, and the change appears.
+    """
+    article = kb.find_article(slug)
+    if article is None:
+        raise HTTPException(404, f"There is no article called {slug}.")
+    return kb.render_article(article)
+
+
+@app.get("/api/sensors")
+def list_suite() -> list[dict]:
+    """The sensor suite, from architecture section 13.
+
+    A planned sensor carries NO reading key. A live or manual sensor carries a
+    reading, or `null` when the station has none. `null` means the tile must say
+    the value is unavailable. It must never fall back to the example number in
+    the shell file.
+    """
+    station_id = state.settings.mobilelab_station_id
+    payload: list[dict] = []
+
+    with state.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+        for sensor in suite.SUITE:
+            entry_out: dict[str, Any] = {
+                "number": sensor.number,
+                "name": sensor.name,
+                "parameters": sensor.parameters,
+                "interface": sensor.interface,
+                "tier": sensor.tier,
+                "status": sensor.status,
+                "note": sensor.note,
+            }
+
+            if sensor.status != suite.PLANNED:
+                cur.execute(
+                    suite.NEWEST_READING,
+                    {
+                        "station_id": station_id,
+                        "sensor": sensor.sensor,
+                        "metric": sensor.metric,
+                        "sources": list(sensor.sources),
+                    },
+                )
+                row = cur.fetchone()
+                entry_out["reads"] = {
+                    "sensor": sensor.sensor,
+                    "metric": sensor.metric,
+                    "sources": list(sensor.sources),
+                }
+                entry_out["reading"] = (
+                    None
+                    if row is None
+                    else {
+                        "value": float(row["value"]) if row["value"] is not None else None,
+                        "unit": row["unit"],
+                        "ts": row["ts"],
+                        "source": row["source"],
+                        "is_real": row["is_real"],
+                    }
+                )
+
+            payload.append(entry_out)
+
+    suite.assert_no_planned_values(payload)
+    return payload
 
 
 @app.get("/api/sources", response_model=list[SourceRow])
@@ -868,6 +975,90 @@ def _csv_cell(value: Any) -> str:
     if isinstance(value, datetime):
         return value.isoformat()
     return str(value)
+
+
+LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+POWER_DELAY_SECONDS = 2.0
+
+
+def _power_command(action: str) -> None:
+    """Run the power command after a short pause.
+
+    The pause lets the answer reach the screen, so a person sees "shutting
+    down" instead of a browser error.
+    """
+    time.sleep(POWER_DELAY_SECONDS)
+    try:
+        subprocess.run(
+            ["sudo", "-n", "/usr/bin/systemctl", action],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+    except Exception as exc:
+        log.error("the %s command failed: %s", action, exc)
+
+
+def _require_local(request: Request, action: str) -> str:
+    """Refuse a power command from anywhere but the station itself.
+
+    The API has no authentication and binds every interface, so without this
+    check anybody on the network could switch the station off in the middle of
+    a field session. The kiosk browser runs ON the Pi and loads the page from
+    localhost, so it passes. A laptop across the room does not.
+    """
+    client = request.client.host if request.client else ""
+    if client not in LOOPBACK:
+        log.error(
+            "REFUSED power %s from %s. Only the station screen may do this.", action, client
+        )
+        raise HTTPException(
+            403,
+            f"The {action} control works at the station screen only. "
+            f"This request came from {client or 'an unknown address'}.",
+        )
+    return client
+
+
+@app.get("/api/power")
+def power_state() -> dict:
+    """What the power control can do, and who may use it."""
+    return {
+        "actions": ["shutdown", "restart"],
+        "local_only": True,
+        "note": "These work from the station screen only. See README, Kiosk.",
+        "hardware_button": {
+            "present": True,
+            "device": "pwr_button, the Pi 5 onboard button",
+            "behaviour": "A press starts the same clean shutdown. logind sets HandlePowerKey=poweroff.",
+        },
+    }
+
+
+@app.post("/api/power/shutdown")
+def power_shutdown(request: Request) -> dict:
+    """Shut the station down cleanly. Architecture section 9."""
+    client = _require_local(request, "shutdown")
+    log.warning("shutdown requested from %s. The station stops in %.0f seconds.",
+                client, POWER_DELAY_SECONDS)
+    threading.Thread(target=_power_command, args=("poweroff",), daemon=True).start()
+    return {
+        "action": "shutdown",
+        "in_seconds": POWER_DELAY_SECONDS,
+        "message": "The station is shutting down. Wait for the screen to go dark, then unplug it.",
+    }
+
+
+@app.post("/api/power/restart")
+def power_restart(request: Request) -> dict:
+    client = _require_local(request, "restart")
+    log.warning("restart requested from %s", client)
+    threading.Thread(target=_power_command, args=("reboot",), daemon=True).start()
+    return {
+        "action": "restart",
+        "in_seconds": POWER_DELAY_SECONDS,
+        "message": "The station is restarting. The chart returns on its own.",
+    }
 
 
 @app.websocket("/ws/live")

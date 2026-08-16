@@ -156,10 +156,25 @@ names above. A file with any other count, or any renamed column, is refused with
 and **nothing is ingested**. A firmware change breaks visibly on the first upload rather
 than silently shifting every value one column to the left.
 
-> **OPEN RISK.** The guard checks the count and the names. It cannot check the ORDER of
-> two columns that keep the same name set and the same count. A firmware that swapped, for
-> example, `bar30T_C` and `poetT_mC` would pass the guard, and the station would silently
-> store two metrics under each other's names. See §16.
+**CORRECTED 2026-08-16.** An earlier version of this section warned that a reorder would
+pass the guard. That was wrong. The guard compares the header to the documented header
+**in order**, so a swap is refused and both offending columns are named:
+
+```
+the column header does not match the documented header.
+position 6: expected 'bar30T_C', got 'cels_T_C';
+position 18: expected 'cels_T_C', got 'bar30T_C'. Nothing was ingested.
+```
+
+`ops/verify-bridge.sh` gate 7 posts exactly that file, with all 25 columns present, and
+confirms the refusal and that nothing is written.
+
+> **WHAT IS STILL OPEN.** The guard checks the NAME and the POSITION. It cannot check the
+> MEANING. A firmware that keeps all 25 names in the documented order, and changes what a
+> column holds, passes every check. An example: `poetT_mC` starts reporting degrees rather
+> than milli degrees. The header is identical, the file is accepted, and every value is
+> wrong by a factor of a thousand. Nothing tells the station which firmware version wrote
+> a file. See §16.
 
 ### Dive idempotency **[LOCKED]**
 
@@ -575,10 +590,27 @@ Full eventual suite. Interface column is the target ingest path.
 | 3 | Apera PC60 | ORP, pH, EC, temp | manual entry card | **V1** |
 | 4 | Soil probe | pH, temp, moisture, air humidity, light, fertility | RS485/Modbus | V2 |
 | 5 | Air probe | PPM, wind speed, wind dir, temp, humidity, UV | RS485/Modbus | V2 |
-| 6 | Rain gauge | tipping-bucket rainfall | GPIO pulse | V2 |
+| 6 | Rain gauge | tipping-bucket rainfall | **by hand in V1**, GPIO pulse in V2 | **V1** |
 | 7 | Noise | dB SPL | RS485 or I2S | V3 |
 | 8 | Creek current | flow/velocity | RS485 or SDI-12 | V3 |
 | 9 | Buoy current | speed + velocity | LoRa | V3 |
+
+### The rain gauge is a working sensor today **[LOCKED]**
+
+**CORRECTED 2026-08-16.** The rain gauge was listed as planned. It is not planned. Scott
+reads it and types the number three times a day, and manual entry is built and gated.
+
+**Absence of data is not absence of capability.** A gauge that nobody read this morning
+still works. It therefore carries the manual chip, beside the Apera PC60, and the station
+counts 3 of 9 sensors working: one live, two by hand.
+
+The tile reads `rain / rainfall` from source `manual` ONLY. The synthetic fixture
+publishes rainfall on every run, and that number must never appear beside a real sensor.
+Two doors keep it out: the tile names its permitted sources, and the query demands
+`is_real`.
+
+GPIO on a tipping bucket replaces the typing in V2. That changes who does the work. It
+does not change whether the station can measure rain.
 
 Items 4, 5, 7, and 8 all target one shared RS485 twisted pair. The "nine protocols"
 problem collapses to one Modbus poller, plus GPIO, `gpsd`, LoRa rx, the logger bridge,
@@ -725,7 +757,7 @@ Locked section. An open blind spot is never dropped at purge.
 | MQTT durability | a stopped writer loses nothing. The broker holds QoS 1 messages for a persistent session and delivers every one at reconnect. | that a power cut loses nothing. Mosquitto writes its queue to disk every 60 seconds, so a power cut can lose up to a minute of queued messages. The test stopped the writer, not the broker. | **OPEN** — closes with a shorter autosave interval, or with a UPS HAT |
 | Continuous aggregate correctness | a wide query reads a rollup and not a raw scan | that the rollup matches the raw table after a deletion. Deleting a raw row does **not** remove its aggregate bucket. Measured on 2026-08-15: 52 hour buckets survived with no raw row behind them, and the chart would have drawn deleted data. The refresh policy repairs this inside its window only. A correction older than the window stays wrong indefinitely. | **OPEN** — needs a correction procedure in the runbook, see `db/README.md` |
 | Local API and bridge exposure | the kiosk browser, a teacher laptop, and a WQL logger all reach the station | that it is safe on a shared network. The API binds `0.0.0.0` with no authentication and `/docs` is open, and the bridge does the same on port 8081. **CORRECTED 2026-08-15: the API is NOT read only.** It was when that claim was written. Since the entry form landed, anybody on the network can save, correct, or delete a reading, and anybody can upload a dive. The README carried the stale "read only" claim and has been fixed. | **OPEN** — dev cycle only, must close before any classroom network |
-| CSV column reorder | a wrong column COUNT is refused, and a RENAMED column is refused | that a reorder is caught. The guard checks the count and the name set. Two columns of the same type swapped, with 25 columns kept, passes the guard, and the station silently stores each metric under the other's name. | **OPEN** — needs a checksum of the header, or a firmware version field, §3 |
+| CSV header validation | **CORRECTED 2026-08-16.** A wrong COUNT is refused, a RENAMED column is refused, and a REORDER is refused. The guard compares the header to the documented header in order and names the offending columns and positions. `verify-bridge.sh` gate 7 proves it with two same-typed columns swapped and all 25 columns kept. An earlier version of this row said a reorder would pass. It does not. | that the station reads the MEANING right. The guard checks names and positions, not units. A firmware that keeps all 25 names in order and changes what a column holds, such as `poetT_mC` in degrees rather than milli degrees, passes every check and is stored wrong. Nothing records which firmware version wrote a file. | **OPEN** — needs a firmware version field in the meta header, §3 |
 | Dive idempotency | a repeat upload of the same file answers 409 and writes nothing | that an EDITED file is caught. The key is `(device_id, filename)`, not a checksum. A logger that rewrote `dive0007.csv` with new content would be turned away and the first copy kept. Correct for immutable files, wrong for anything else. | **OPEN** — closes with a content hash on the manifest, §3 |
 | Dive completeness | rejected rows are counted, logged, and stored on the manifest | that a dive with gaps reads as a dive with gaps. A dive that lost samples to a bad clock ingests as a whole dive. `rows_rejected` records it on the manifest, but no chart marks the gap, and a reader sees an unbroken profile. | **OPEN** — needs a gap marker on the chart |
 | Teacher review queue | a flag is written on the row and the batch, and the entry screen shows it | that anybody reviews it. Nothing collects flagged rows. There is no list, no filter, and no alert. A flag nobody reviews does nothing. §4 promises this queue and §14 now records it as OUT for V1. | **OPEN** — `/api/flagged` is the seam, §14 |

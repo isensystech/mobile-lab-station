@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile Lab Station - Learn</title>
+<link rel="icon" href="/static/brand/favicon.png" type="image/png">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/kb.css">
+</head>
+<body data-status="loading">
+
+<header class="bar">
+  <a class="brand" href="/" title="PlanetWerx">
+    <img class="brand-lockup" src="/static/brand/planetwerx-lockup-white.png" alt="PlanetWerx">
+  </a>
+  <span class="brand-product">Learn</span>
+  <nav class="nav">
+    <a href="/">Chart</a>
+    <a href="/entry">Enter readings</a>
+    <a href="/knowledge" aria-current="page">Learn</a>
+    <a href="/sensors">Sensors</a>
+  </nav>
+</header>
+
+<main class="shell">
+  <div class="two-column">
+
+    <section class="panel scroll">
+      <h2>Articles</h2>
+      <ul class="article-list" id="article-list">
+        <li class="shell-example">
+          <button type="button" disabled>
+            Example article title
+            <span class="list-summary">This list is replaced from the markdown files.</span>
+          </button>
+        </li>
+      </ul>
+      <p class="muted" id="list-note"></p>
+    </section>
+
+    <section class="panel scroll">
+      <!--
+        THIS IS A SHELL.
+
+        Everything inside #article-body is an example of the intended rendering.
+        The page replaces it with the article rendered from its markdown file in
+        docs/kb/. The markdown is the source of truth. Nothing here is a second
+        copy of the text, and nothing here must reach the screen.
+      -->
+      <div class="article-body shell-example" id="article-body">
+        <h1>Example heading</h1>
+        <p>
+          This paragraph shows the intended rendering. The station replaces it
+          with the article text from the markdown file. If you can still read
+          this sentence, the page did not load the article.
+        </p>
+        <h2>Example section</h2>
+        <p>Body text sits at this size, with this line height and this measure.</p>
+      </div>
+
+      <p class="source-note" id="source-note"></p>
+    </section>
+
+  </div>
+</main>
+
+<script type="module" src="/static/knowledge.js"></script>
+<script src="/static/fit.js"></script>
+</body>
+</html>

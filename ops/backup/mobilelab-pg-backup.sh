@@ -31,8 +31,19 @@ case "${BACKUP_DIR}/" in
     ;;
 esac
 
+BACKUP_GROUP="${MOBILELAB_BACKUP_GROUP:-scott}"
+
 mkdir -p "${BACKUP_DIR}"
 chmod 0750 "${BACKUP_DIR}"
+
+if getent group "${BACKUP_GROUP}" > /dev/null 2>&1; then
+  chgrp "${BACKUP_GROUP}" "${BACKUP_DIR}"
+  echo "==> the ${BACKUP_GROUP} group can read ${BACKUP_DIR}"
+  echo "    An off box copy then needs no root on this machine."
+else
+  echo "WARNING: the group ${BACKUP_GROUP} does not exist." >&2
+  echo "  The dumps stay root only. An off box copy will need sudo." >&2
+fi
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 TARGET="${BACKUP_DIR}/${DB_NAME}-${STAMP}.dump"
@@ -47,6 +58,9 @@ runuser -u postgres -- pg_dump \
   "${DB_NAME}" > "${TARGET}"
 
 chmod 0640 "${TARGET}"
+if getent group "${BACKUP_GROUP}" > /dev/null 2>&1; then
+  chgrp "${BACKUP_GROUP}" "${TARGET}"
+fi
 
 if [ ! -s "${TARGET}" ]; then
   echo "ERROR: the dump file is empty." >&2

@@ -49,12 +49,23 @@ def build_dive(
     bad_clock_rows: tuple[int, ...] = (),
     bad_clock_stamp: str = "1970-01-01T00:00:09Z",
     drop_column: str | None = None,
+    swap_columns: tuple[str, str] | None = None,
 ) -> str:
     columns = list(DIVE_COLUMNS)
     if drop_column:
         if drop_column not in columns:
             raise SystemExit(f"{drop_column} is not a column in the dive header.")
         columns.remove(drop_column)
+    if swap_columns:
+        # A true reorder. The header names swap AND the values swap with them,
+        # because each row is written by looking the value up by column name.
+        # The count stays at 25, so only a name check in order can catch it.
+        first, second = swap_columns
+        for name in (first, second):
+            if name not in columns:
+                raise SystemExit(f"{name} is not a column in the dive header.")
+        i, j = columns.index(first), columns.index(second)
+        columns[i], columns[j] = columns[j], columns[i]
 
     meta = [
         f"# file: /dive{cast:04d}.csv",
@@ -151,7 +162,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--unsynced-rows", default="", help="Row indexes to mark unsynced.")
     parser.add_argument("--bad-clock-rows", default="", help="Row indexes to stamp 1970.")
     parser.add_argument("--drop-column", default=None, help="Remove a column, to test the guard.")
+    parser.add_argument(
+        "--swap-columns",
+        default=None,
+        help="Swap two columns, as NAME,NAME. The count stays at 25.",
+    )
     args = parser.parse_args(argv)
+
+    swap = None
+    if args.swap_columns:
+        parts = [part.strip() for part in args.swap_columns.split(",") if part.strip()]
+        if len(parts) != 2:
+            raise SystemExit("--swap-columns needs exactly two names, as NAME,NAME.")
+        swap = (parts[0], parts[1])
 
     if args.start:
         start = datetime.fromisoformat(args.start.replace("Z", "+00:00")).astimezone(UTC)
@@ -169,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
             unsynced_rows=parse_int_list(args.unsynced_rows),
             bad_clock_rows=parse_int_list(args.bad_clock_rows),
             drop_column=args.drop_column,
+            swap_columns=swap,
         )
     )
     return 0

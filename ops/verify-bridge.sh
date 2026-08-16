@@ -144,7 +144,7 @@ journalctl -u mobilelab-bridge --no-pager -n 40 -o cat 2>&1 | grep 'REFUSED' | t
 if [ "${G2_CODE}" = "400" ] && [ "${AFTER2_R}" = "${BEFORE2_R}" ] && [ "${AFTER2_D}" = "${BEFORE2_D}" ]; then
   gate_result pass \
     "A file with 24 columns instead of 25 is refused with 400, the message names the expected header and says nothing was ingested, and neither a reading nor a dive manifest was written. A firmware change breaks visibly on the first upload." \
-    "That every malformed shape is caught. This test removed one column. A firmware that RENAMES a column while keeping 25 is caught by the header comparison, but a firmware that reorders two columns of the same type and count would pass the guard and silently swap two metrics."
+    "That the station reads the file correctly once it accepts it. This gate proves a bad SHAPE is refused. Gate 7 proves a reorder is refused. Neither proves the station reads the MEANING right: a firmware that keeps all 25 names in order but changes what a column contains, such as reporting poetT_mC in degrees rather than milli degrees, passes every check here and is stored wrong."
 else
   gate_result fail "nothing" "nothing"
 fi
@@ -283,6 +283,51 @@ if [ "${DIVE_ROWS}" -ge 300 ] && [ "${WQL_ROWS}" -gt 2000 ] 2>/dev/null; then
   gate_result pass \
     "The main dive is ${DIVE_ROWS} samples at one second, which is ${WQL_SPAN} minutes in the water, and it produced ${WQL_ROWS} readings rows. That is a realistic cast, not a ten row sample. The whole table holds ${TOTAL} rows across ${TSPAN} days." \
     "That the station holds a field season. One dive is minutes. A day of diving is several dives, and a term is hundreds. Nothing tested many dives at once, nothing tested two loggers uploading together, and nothing tested an upload while a student is entering readings by hand."
+else
+  gate_result fail "nothing" "nothing"
+fi
+
+gate_header 7 "NEGATIVE, two columns swapped with the count still 25"
+echo "The count guard cannot see this. Only a name check in order can."
+makedive --rows 40 --start "${DIVE_START}" --cast 11 \
+  --swap-columns bar30T_C,cels_T_C > "${WORK}/dive0011.csv"
+echo "--- the header the logger would now send ---"
+grep '^ms,' "${WORK}/dive0011.csv" | head -1 | tr ',' '\n' | nl \
+  | awk '$1==7 || $1==19 {printf "  position %d  %s\n", $1-1, $2}'
+echo "  column count is still: $(grep '^ms,' "${WORK}/dive0011.csv" | head -1 | awk -F, '{print NF}')"
+echo "  both columns hold a temperature in degrees C, so a value check would not notice either"
+BEFORE7_R="$(psql_val "select count(*) from public.readings where source='wql'")"
+BEFORE7_D="$(psql_val "select count(*) from public.dives")"
+echo "readings before = ${BEFORE7_R}, dive manifests before = ${BEFORE7_D}"
+echo
+echo "--- posting it ---"
+G7_CODE="$(curl -sS -X POST "${BRIDGE}/dives/${DEVICE}/dive0011.csv" \
+  -H 'Content-Type: text/csv' --data-binary @"${WORK}/dive0011.csv" \
+  -o "${WORK}/g7.json" -w "%{http_code}")"
+echo "http_status = ${G7_CODE}"
+echo "--- the message, verbatim ---"
+"${VENV_PY}" -c "
+import json, textwrap
+d=json.load(open('${WORK}/g7.json'))['detail']
+print('  reason        ', d['reason'])
+print('  rows_ingested ', d['rows_ingested'])
+print('  detail:')
+for line in textwrap.wrap(d['detail'], 92): print('    ' + line)
+"
+AFTER7_R="$(psql_val "select count(*) from public.readings where source='wql'")"
+AFTER7_D="$(psql_val "select count(*) from public.dives")"
+echo
+echo "readings after = ${AFTER7_R}, dive manifests after = ${AFTER7_D}"
+NAMED7="$("${VENV_PY}" -c "
+import json
+d=json.load(open('${WORK}/g7.json'))['detail']['detail']
+print('yes' if 'bar30T_C' in d and 'cels_T_C' in d and 'position' in d else 'no')")"
+echo "the message names both offending columns and their positions: ${NAMED7}"
+if [ "${G7_CODE}" = "400" ] && [ "${AFTER7_R}" = "${BEFORE7_R}" ] \
+   && [ "${AFTER7_D}" = "${BEFORE7_D}" ] && [ "${NAMED7}" = "yes" ]; then
+  gate_result pass \
+    "A file with all 25 columns present but two of them swapped is refused with 400. The message names both columns and both positions, and neither a reading nor a dive manifest was written. The guard compares the header to the documented header in order, so a reorder cannot pass as a count." \
+    "That a swap of two columns the station never reads would be noticed in the data. It is refused, but only because the HEADER changed. If a firmware swapped two columns and also rewrote the header to match its new order, the file would be internally consistent, the station would refuse it, and a person would have to decide which side is right. Nothing tells the station which firmware version wrote a file."
 else
   gate_result fail "nothing" "nothing"
 fi

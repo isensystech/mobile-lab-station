@@ -235,7 +235,7 @@ export function shiftValues(values, steps) {
 export function buildDatasets(payload, options) {
   const settings = options || {};
   const axisMillis = payload.axis.map((stamp) => new Date(stamp).getTime());
-  const colours = ["#1f6feb", "#d1622b"];
+  const colours = ["#08828c", "#d1622b"];
 
   const datasets = payload.series.map((series, index) => {
     const verdict = classifyProvenance(series);

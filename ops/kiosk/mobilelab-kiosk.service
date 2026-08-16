@@ -1,0 +1,18 @@
+[Unit]
+Description=Mobile Lab Station kiosk, Chromium on the chart page
+Documentation=file://__REPO_ROOT__/README.md
+After=default.target
+
+[Service]
+Type=simple
+Environment=MOBILELAB_KIOSK_URL=http://localhost:8000/
+Environment=WAYLAND_DISPLAY=wayland-0
+ExecStart=__REPO_ROOT__/ops/kiosk/kiosk-launch.sh
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mobilelab-kiosk
+
+[Install]
+WantedBy=default.target

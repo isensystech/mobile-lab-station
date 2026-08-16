@@ -207,7 +207,7 @@ cat <<'LOOK'
      shared axis. Different numbers mean the chart would draw one
      line shifted against the other.
 
-  5. Step 5 shows the SIMULATED banner, draws with the dashed fill,
+  5. Step 5 shows the SIMULATED marking, draws with the dashed fill,
      puts R before S, and prints CORRELATION IS NOT CAUSATION.
 
   6. Step 6 delivers the live reading in about a second, already
@@ -226,7 +226,7 @@ cat <<'LOOK'
   3. Step 4 shows 0 time slots, or the two series have different
      lengths.
 
-  4. Step 5 draws the test data SOLID, or the SIMULATED banner is
+  4. Step 5 draws the test data SOLID, or the SIMULATED marking is
      missing. Fake data is pretending to be real. This is the worst
      failure on this list. Stop the demo.
 

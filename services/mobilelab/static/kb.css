@@ -1,0 +1,127 @@
+/*
+ * The knowledge page and the sensor suite page.
+ *
+ * This file EXTENDS style.css. It defines no colour of its own and no new
+ * typeface. Every token comes from style.css, so these two pages look like the
+ * chart page and the entry form, not like a third product.
+ */
+
+.two-column {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) 1fr;
+  gap: 0.5rem;
+}
+.two-column > .panel { min-height: 0; }
+@media (max-width: 820px) {
+  .two-column { grid-template-columns: 1fr; }
+}
+
+.article-list { list-style: none; margin: 0; padding: 0; }
+.article-list li { margin-bottom: 0.5rem; }
+.article-list button {
+  width: 100%;
+  text-align: left;
+  min-height: 46px;
+  font-size: 0.92rem;
+  padding: 0.6rem 0.8rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f6f8fa;
+  color: var(--ink);
+  cursor: pointer;
+}
+.article-list button[aria-current="true"] {
+  border-color: #1f6feb;
+  background: #fff;
+  font-weight: 600;
+}
+.article-list .list-summary {
+  display: block;
+  font-weight: 400;
+  font-size: 0.88rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+
+.article-body { max-width: 68ch; }
+.article-body h1 { font-size: 1.3rem; margin: 0 0 0.4rem; }
+.article-body h2 { font-size: 1.05rem; margin: 1.4rem 0 0.4rem; }
+.article-body h3 { font-size: 1.05rem; margin: 1.1rem 0 0.3rem; }
+.article-body p { margin: 0.6rem 0; }
+.article-body li { margin: 0.3rem 0; }
+.article-body table { margin: 0.8rem 0; }
+.article-body code {
+  background: #f0f3f6;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.94em;
+}
+.article-body strong { font-weight: 700; }
+
+.source-note {
+  margin-top: 1.4rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* The example content in the shell. It must never survive to the screen. */
+.shell-example { opacity: 0.55; }
+
+.suite-panel { flex: 1 1 auto; }
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+@media (max-width: 820px) { .tile-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.tile {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.tile-head { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.tile-name { font-size: 0.94rem; font-weight: 700; margin: 0; }
+.tile-params { color: var(--muted); font-size: 0.78rem; margin: 0; }
+.tile-note { color: var(--muted); font-size: 0.74rem; margin: 0.2rem 0 0; }
+.tile-meta { color: var(--muted); font-size: 0.74rem; margin: 0; }
+
+.tile-value { font-size: 1.2rem; font-weight: 700; margin: 0.3rem 0 0; }
+.tile-value .unit { font-size: 1rem; font-weight: 600; color: var(--muted); }
+
+/*
+ * A tile with no number.
+ *
+ * A planned sensor and an unavailable reading both land here. Neither shows a
+ * digit. The text says why, in words.
+ */
+.tile-none { font-size: 0.88rem; font-weight: 600; color: var(--muted); }
+.tile-unavailable { color: #7a4a00; }
+
+.pill {
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.pill-live { background: #e4f2e4; color: #1d5c1d; }
+/*
+ * Manual is magenta. It is a working part of the station, so it must not look
+ * like the grey planned chip. A person reads the meter, and that is a capability
+ * whether or not a reading arrived today.
+ */
+.pill-manual { background: #f7e6f2; color: #7a1f5c; }
+.pill-planned { background: #eceff2; color: #5b6670; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 0.7rem; font-size: 0.8rem; margin: 0 0 0.4rem; }
+.legend span { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.92rem; }

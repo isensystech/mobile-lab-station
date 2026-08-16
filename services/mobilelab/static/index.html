@@ -4,73 +4,81 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mobile Lab Station - Overlay chart</title>
+<link rel="icon" href="/static/brand/favicon.png" type="image/png">
 <link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/chart.css">
 </head>
 <body data-status="loading">
 
 <header class="bar">
-  <h1>Mobile Lab Station</h1>
-  <p class="sub">Two measurements on one time axis.</p>
+  <a class="brand" href="/" title="PlanetWerx">
+    <img class="brand-lockup" src="/static/brand/planetwerx-lockup-white.png" alt="PlanetWerx">
+  </a>
+  <span class="brand-product">Mobile Lab</span>
+  <nav class="nav">
+    <a href="/" aria-current="page">Chart</a>
+    <a href="/entry">Enter</a>
+    <a href="/knowledge">Learn</a>
+    <a href="/sensors">Sensors</a>
+  </nav>
+  <span class="bar-spacer"></span>
+  <!--
+    The simulated badge. Architecture section 5 asks for a persistent badge that
+    is not a tooltip. It stays here for as long as any line is not real. Tapping
+    it opens the full wording.
+  -->
+  <button type="button" id="simulated-banner" class="sim-badge sim-hidden">SIMULATED DATA</button>
+  <button type="button" id="power-open" class="bar-power">Power</button>
 </header>
 
-<div id="simulated-banner" class="banner banner-hidden" role="status">
-  <strong>SIMULATED DATA. NOT A MEASUREMENT.</strong>
-  <span id="banner-detail">A generator made these numbers. Do not use them as evidence
-  about any real place.</span>
-</div>
+<main class="shell">
 
-<main>
-  <section class="panel">
-    <div class="controls">
-      <label>
-        Site
-        <select id="station"></select>
-      </label>
-      <label>
-        Time range
-        <select id="range">
-          <option value="48">Last 48 hours</option>
-          <option value="168" selected>Last 7 days</option>
-          <option value="336">Last 14 days</option>
-        </select>
-      </label>
-      <label class="check">
-        <input type="checkbox" id="normalize">
-        Normalize both lines
-      </label>
-      <button id="reload" type="button">Get the data again</button>
-    </div>
-
+  <section class="chart-panel panel">
     <div class="chart-holder">
       <canvas id="chart" aria-label="Overlay chart of two measurements"></canvas>
     </div>
-
-    <div class="controls">
-      <label class="slider">
-        Move the second line
-        <input type="range" id="lag" min="-12" max="24" step="1" value="0">
-        <output id="lag-value">0 hours</output>
-      </label>
-      <button id="use-estimate" type="button">Use the measured delay</button>
-    </div>
   </section>
 
-  <section class="panel caption-panel" id="caption-panel">
-    <h2>What the data says</h2>
+  <section class="panel control-panel">
+    <div class="controls">
+      <label class="ctl">
+        <span class="ctl-label">Range</span>
+        <select id="range">
+          <option value="48">48 hours</option>
+          <option value="168" selected>7 days</option>
+          <option value="336">14 days</option>
+        </select>
+      </label>
+      <label class="ctl ctl-check">
+        <input type="checkbox" id="normalize">
+        <span>Normalize</span>
+      </label>
+      <label class="ctl ctl-slider">
+        <span class="ctl-label">Shift second line</span>
+        <input type="range" id="lag" min="-12" max="24" step="1" value="0">
+        <output id="lag-value">0 h</output>
+      </label>
+      <button id="use-estimate" type="button" class="btn">Measured delay</button>
+      <button id="detail-open" type="button" class="btn">Where from</button>
+      <select id="station" class="ctl-hidden"></select>
+      <button id="reload" type="button" class="ctl-hidden">Reload</button>
+    </div>
+
     <p id="caption-headline" class="caption-headline">Reading the data...</p>
     <p id="caption-detail" class="caption-detail"></p>
     <p id="caption-shift" class="caption-shift"></p>
-
     <p class="warning" id="warning"></p>
-
-    <p class="permanent">CORRELATION IS NOT CAUSATION.</p>
-    <p class="permanent-note">
-      Two lines that move together do not prove that one causes the other.
-      Something else can move both.
-    </p>
   </section>
 
-  <section class="panel" id="provenance-panel">
+</main>
+
+<p class="permanent-strip">
+  CORRELATION IS NOT CAUSATION. Two lines that move together do not prove that one
+  causes the other.
+</p>
+
+<div id="detail-panel" class="modal modal-hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
     <h2>Where these numbers come from</h2>
     <table id="provenance-table">
       <thead>
@@ -79,10 +87,46 @@
       <tbody></tbody>
     </table>
     <p class="muted" id="served-note"></p>
-  </section>
-</main>
+    <div class="modal-actions">
+      <button type="button" id="detail-close" class="btn">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="sim-panel" class="modal modal-hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <h2>Simulated data. Not a measurement.</h2>
+    <p id="sim-detail">
+      A generator made these numbers. Do not use them as evidence about any real place.
+    </p>
+    <p class="muted">
+      A line drawn with dashes is not real. A line drawn solid is a measurement.
+    </p>
+    <div class="modal-actions">
+      <button type="button" id="sim-close" class="btn">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="power-panel" class="modal modal-hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <h2>Stop the station?</h2>
+    <p class="muted">
+      Shut down first, then unplug. Pulling the plug while it runs can damage the
+      stored data.
+    </p>
+    <div class="modal-actions">
+      <button type="button" id="power-confirm" class="btn btn-danger">Yes, shut down</button>
+      <button type="button" id="power-restart" class="btn">Restart instead</button>
+      <button type="button" id="power-cancel" class="btn">Cancel</button>
+    </div>
+    <p id="power-result" class="power-result"></p>
+  </div>
+</div>
 
 <script src="/static/vendor/chart.umd.js"></script>
 <script type="module" src="/static/app.js"></script>
+<script src="/static/power.js"></script>
+<script src="/static/fit.js"></script>
 </body>
 </html>

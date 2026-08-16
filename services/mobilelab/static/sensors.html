@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile Lab Station - Sensors</title>
+<link rel="icon" href="/static/brand/favicon.png" type="image/png">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/kb.css">
+</head>
+<body data-status="loading">
+
+<header class="bar">
+  <a class="brand" href="/" title="PlanetWerx">
+    <img class="brand-lockup" src="/static/brand/planetwerx-lockup-white.png" alt="PlanetWerx">
+  </a>
+  <span class="brand-product">Sensors</span>
+  <nav class="nav">
+    <a href="/">Chart</a>
+    <a href="/entry">Enter readings</a>
+    <a href="/knowledge">Learn</a>
+    <a href="/sensors" aria-current="page">Sensors</a>
+  </nav>
+</header>
+
+<main class="shell">
+
+  <section class="panel">
+    <h2>How to read this page</h2>
+    <p class="legend">
+      <span><span class="pill pill-live">Live</span> A sensor sends readings now.</span>
+      <span><span class="pill pill-manual">Manual</span> A person reads the instrument and types the number. It works, even on a day with no reading.</span>
+      <span><span class="pill pill-planned">Planned</span> Not fitted. It shows no number.</span>
+    </p>
+    <p class="muted">
+      A planned sensor never shows a value, not even an example. A number beside a
+      sensor that does not exist would be a lie that outlives the demo.
+    </p>
+    <p class="muted" id="counts"></p>
+  </section>
+
+  <section class="panel scroll suite-panel">
+    <h2>The suite</h2>
+    <!--
+      THIS IS A SHELL.
+
+      The tiles below show the intended rendering, and they carry ILLUSTRATIVE
+      numbers. The page replaces every tile from /api/sensors before a person
+      sees it. A tile with no value from the API must say so. It must never fall
+      back to the number printed here.
+    -->
+    <div class="tile-grid" id="tile-grid">
+      <div class="tile shell-example">
+        <div class="tile-head">
+          <p class="tile-name">Example sensor</p>
+          <span class="pill pill-live">Live</span>
+        </div>
+        <p class="tile-params">The parameters go here</p>
+        <p class="tile-value">21.4 <span class="unit">degC</span></p>
+        <p class="tile-meta">This number is illustrative. The page replaces it.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script type="module" src="/static/sensors.js"></script>
+<script src="/static/fit.js"></script>
+</body>
+</html>

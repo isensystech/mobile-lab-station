@@ -92,27 +92,27 @@ cat <<'LOOK'
     the numbers are real, and how the line is drawn.
 LOOK
 
-say "STEP 3. What the SIMULATED banner must look like."
+say "STEP 3. What the SIMULATED badge must look like."
 cat <<'BANNER2'
-  The banner is a WIDE RED BAR across the top of the page, under the
-  title. It is on the page itself. It is not a tooltip. It is not a
-  small note in the legend. You do not have to hover over anything.
+  The badge is a MAGENTA PILL in the top bar, beside the Power button.
+  It reads SIMULATED DATA. It is on the page itself. It is not a
+  tooltip, and you do not have to hover over anything to see it.
 
-  It reads:
+  Tap it. A box opens and reads:
 
-      SIMULATED DATA. NOT A MEASUREMENT.
+      Simulated data. Not a measurement.
       A generator made these numbers. Do not use them as evidence
       about any real place.
 
-  Both lines are DASHED while that banner is up. A dashed line means
+  Both lines are DASHED while that badge is up. A dashed line means
   the station cannot vouch for the numbers.
 
-  The banner appears whenever ANY line is not real. It also appears
+  The badge appears whenever ANY line is not real. It also appears
   when the station cannot tell whether a line is real. Unknown counts
   as not real. That is on purpose.
 
   When real sensor data arrives one day, that line draws SOLID, and
-  the banner goes away only if every line on the screen is real.
+  the badge goes away only if every line on the screen is real.
 BANNER2
 
 say "STEP 4. What the caption should say."
@@ -152,11 +152,11 @@ CAPTION
 
 say "STEP 5. Six things that mean STOP."
 cat <<'STOP'
-  1. A line is drawn SOLID while the red banner is up.
+  1. A line is drawn SOLID while the SIMULATED badge is up.
      Fake data is pretending to be real. This is the worst fault on
      this list. Stop the demo and report it.
 
-  2. The red banner is missing while the table says NOT REAL.
+  2. The SIMULATED badge is missing while the table says NOT REAL.
      Same fault, seen from the other side.
 
   3. The caption says about 7 hours, or about 0 hours.
@@ -191,7 +191,7 @@ echo
 say "Notes."
 tell "The numbers on the screen are test data. No real sensor exists yet."
 tell "The station makes them from a seed, so the chart shows the same"
-tell "shape every time. That is why the banner must stay up."
+tell "shape every time. That is why the badge must stay up."
 echo
 tell "To run the automatic checks instead of your eyes, type:"
 tell "  sudo ${SCRIPT_DIR}/verify-chart.sh"

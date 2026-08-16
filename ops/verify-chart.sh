@@ -135,7 +135,7 @@ else
   gate_result fail "nothing" "nothing"
 fi
 
-gate_header 2 "a synthetic series draws dashed and the SIMULATED banner is present"
+gate_header 2 "a synthetic series draws dashed and the SIMULATED badge is present"
 G2_SIM="$(attr simulated "${WORK}/g1.html")"
 G2_AD="$(attr a-dashed "${WORK}/g1.html")"
 G2_BD="$(attr b-dashed "${WORK}/g1.html")"
@@ -143,20 +143,22 @@ G2_AR="$(attr a-real "${WORK}/g1.html")"
 echo "simulated flag  = ${G2_SIM}"
 echo "first series dashed  = ${G2_AD}, drawn as real = ${G2_AR}"
 echo "second series dashed = ${G2_BD}"
-echo "--- the banner element, and whether it is hidden ---"
-grep -oE '<div id="simulated-banner" class="[^"]*"' "${WORK}/g1.html"
-echo "--- the banner text on the screen ---"
-grep -oE 'SIMULATED DATA. NOT A MEASUREMENT.' "${WORK}/g1.html" | head -1
+echo "--- the badge element, and whether it is hidden ---"
+grep -oE '<button type="button" id="simulated-banner" class="[^"]*"' "${WORK}/g1.html"
+echo "--- the badge text on the screen ---"
+grep -oE '>SIMULATED DATA<|>UNKNOWN SOURCE<' "${WORK}/g1.html" | head -1
 echo "--- the permanent caption, rule 10 ---"
 grep -oE 'CORRELATION IS NOT CAUSATION.' "${WORK}/g1.html" | head -1
 BANNER_SHOWN="no"
-grep -qE '<div id="simulated-banner" class="banner"' "${WORK}/g1.html" && BANNER_SHOWN="yes"
-echo "banner visible  = ${BANNER_SHOWN}"
+grep -qE 'id="simulated-banner" class="sim-badge"' "${WORK}/g1.html" && BANNER_SHOWN="yes"
+echo "badge visible   = ${BANNER_SHOWN}   (the sim-hidden class is absent)"
+echo "--- the page must not scroll on a 1024 by 600 screen ---"
+echo "  body overflow rule: $(grep -c 'overflow: hidden' "${REPO_ROOT}/services/mobilelab/static/style.css") in style.css"
 if [ "${G2_SIM}" = "true" ] && [ "${G2_AD}" = "true" ] && [ "${G2_BD}" = "true" ] \
    && [ "${BANNER_SHOWN}" = "yes" ]; then
   gate_result pass \
-    "Both fixture series draw dashed, and the banner sits in the page body with the hidden class removed. The banner is a block of page text, not a tooltip and not a legend entry." \
-    "That a person notices it. The banner is present and styled red at the top. Whether a teacher reads it during a busy demo is a human question this test cannot answer."
+    "Both fixture series draw dashed, and the SIMULATED DATA badge sits in the top bar with the hidden class removed. Architecture section 5 asks for a persistent badge that is not a tooltip, and this is that badge: it is a page element, always visible while any line is not real, and it needs no hover." \
+    "That a person notices it. It is now a pill in the bar rather than a full width bar, because the screen is 1024 by 600 and the old bar cost a fifth of the height. It is smaller than what it replaced. Whether a teacher reads it during a busy demo is a human question, and this test cannot answer it."
 else
   gate_result fail "nothing" "nothing"
 fi

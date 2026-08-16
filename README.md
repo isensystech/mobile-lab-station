@@ -29,6 +29,9 @@ synthetic fixture ─┘
 | Overlay chart page | BUILT |
 | Manual entry form | BUILT |
 | WQL logger bridge | BUILT |
+| Knowledge base pages | BUILT |
+| Sensor suite page | BUILT |
+| Kiosk mode | BUILT |
 | gpsd driver | NOT BUILT |
 | Kiosk UI | NOT BUILT |
 | Offload service | NOT BUILT |
@@ -78,6 +81,25 @@ battery is not fitted.
 Press Fix on any recent entry to correct or remove it. A correction also repairs
 the rollup tables the chart reads.
 
+## Learn, and Sensors
+
+```
+http://<pi-address>:8000/knowledge
+http://<pi-address>:8000/sensors
+```
+
+**Learn** renders the articles in `docs/kb/`. The markdown files are the source of
+truth. The page holds no copy of the text. Edit a file, reload the page, and the
+change appears. No restart is needed.
+
+**Sensors** lists the suite from architecture section 13. A live or manual sensor
+shows its newest real reading. **A planned sensor shows no number at all**, not
+even an example. A number beside a sensor that does not exist would outlive the
+demo in somebody's slide deck.
+
+If a fitted sensor has no reading, the tile says so. It never falls back to the
+example number in the page source.
+
 ## The overlay chart
 
 This is the demo screen. Open it in a browser on the Pi, or from any computer on
@@ -105,8 +127,70 @@ broken data.
 
 **"Correlation is not causation" is permanent text**, per hard rule 10.
 
-Do not run Chromium in kiosk mode yet. The page opens in a normal browser, so
-the desktop stays reachable.
+The station now starts this page by itself, fullscreen. See Kiosk mode below.
+
+## Kiosk mode
+
+The station boots straight to the chart. No desktop, no window bar, no dialog.
+
+Chromium runs as one systemd user unit for the `planetwerx` desktop user. If it
+crashes, systemd starts it again in about seven seconds. The machine does not
+reboot.
+
+### HOW TO GET OUT, at the screen, with a keyboard, with no SSH
+
+**Learn these before you need them.**
+
+| Keys | What happens |
+|---|---|
+| **Ctrl+Alt+K** | Stop the kiosk. The desktop comes back. |
+| **Ctrl+Alt+Shift+K** | Start the kiosk again. |
+| **Ctrl+Alt+F2** | A text login on a plain screen. This needs no configuration, so it works even if the keybinding above is broken. |
+| **Ctrl+Alt+F7** | Back to the graphical screen. |
+
+The keyboard is wireless. If nothing happens, press a letter key first to wake
+it, then try again.
+
+### How to turn the kiosk off for good
+
+One command. Nothing is removed, and the desktop returns at the next start.
+
+```
+sudo runuser -u planetwerx -- env XDG_RUNTIME_DIR=/run/user/1000 \
+     systemctl --user disable --now mobilelab-kiosk.service
+```
+
+### What Chromium is told
+
+The launcher clears the crash flags before every start, so no restore bubble
+appears. These flags remove the rest:
+
+`--kiosk` `--no-first-run` `--no-default-browser-check` `--noerrdialogs`
+`--disable-infobars` `--disable-session-crashed-bubble`
+`--hide-crash-restore-bubble` `--disable-component-update`
+`--disable-background-networking` `--disable-translate` `--password-store=basic`
+
+**Chromium is told there is no network beyond the Pi.** The flag
+`--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE localhost , EXCLUDE 127.0.0.1`
+makes every host except the station itself fail to resolve. Nothing on the
+screen can wait on the internet.
+
+### Stopping the station properly
+
+Two ways, and both are clean.
+
+1. **On the screen.** Press **Power** in the top bar, then "Yes, shut down". It
+   asks first, so one stray touch cannot stop a demo. This control answers the
+   station itself only. A laptop on the same network gets 403.
+2. **In hardware.** Press the Pi 5 onboard button once. logind is set to
+   `HandlePowerKey=poweroff`, so it starts the same clean stop.
+
+Wait for the screen to go dark before you unplug it.
+
+### The buttons on the screen
+
+The Pi sees only the touch panel from the ROADOM screen. It presents no keyboard
+or button device. See `ops/README.md` for what that means and how to settle it.
 
 ## Local API
 

@@ -38,7 +38,8 @@ async function loadClock() {
   document.body.dataset.clockOk = String(clock.ok);
 
   if (!clock.ok) {
-    el("clock-alarm-detail").textContent = clock.problems.join(" ");
+    el("clock-alarm-detail").textContent = clock.problems[0] || "";
+    el("clock-panel-detail").textContent = clock.problems.join(" ");
     /*
      * HARD RULE 13. Do not guess a time. An empty box a person must fill is
      * safer than a wrong time a person may not read.
@@ -76,15 +77,15 @@ async function loadMetrics() {
     row.innerHTML = `
       <div class="metric-name">
         ${metric.label}
-        <span class="metric-hint">${metric.hint} Usual range ${metric.plausible_range}.</span>
+        <span class="metric-hint">${metric.plausible_range}</span>
       </div>
       <div class="metric-value">
-        <input type="number" class="big-input value-input" inputmode="decimal"
+        <input type="number" class="value-input" inputmode="decimal"
                step="${metric.step}" placeholder="number"
                data-key="${metric.key}" ${index === 0 ? 'id="first-value"' : ""}>
       </div>
       <div class="metric-unit">
-        <select class="big-input unit-input" data-key="${metric.key}">
+        <select class="unit-input" data-key="${metric.key}">
           ${metric.units.map((u) => `<option value="${u}">${u}</option>`).join("")}
         </select>
       </div>
@@ -136,8 +137,7 @@ function warnIfOutOfRange(input) {
 
   if (canonical < metric.low || canonical > metric.high) {
     warn.textContent =
-      `This looks wrong. ${metric.label} is usually ${metric.plausible_range}. ` +
-      `You can still save it. The station marks it for review.`;
+      `Looks wrong. Usually ${metric.plausible_range}. It still saves, marked for review.`;
     row.classList.add("flagged");
   } else {
     warn.textContent = "";
@@ -355,6 +355,7 @@ async function save(event) {
     clearNumbers();
     el("ts").value = localInputValue(new Date());
     await loadRecent();
+    showTab("enter");
     const first = el("first-value");
     if (first) first.focus();
   } catch (error) {
@@ -366,8 +367,38 @@ async function save(event) {
   }
 }
 
+function showTab(which) {
+  const enter = which === "enter";
+  el("tab-enter").setAttribute("aria-selected", String(enter));
+  el("tab-recent").setAttribute("aria-selected", String(!enter));
+  el("panel-enter").hidden = !enter;
+  el("panel-recent").hidden = enter;
+  document.body.dataset.tab = which;
+}
+
+function showWho() {
+  const who = el("observer").value.trim();
+  const where = el("site").value.trim();
+  el("who-now").textContent = who || where ? `${who || "no name"} at ${where || "no site"}` : "";
+}
+
+const openModal = (id) => document.getElementById(id).classList.remove("modal-hidden");
+const closeModal = (id) => document.getElementById(id).classList.add("modal-hidden");
+
 function wire() {
   el("entry-form").addEventListener("submit", save);
+
+  el("tab-enter").addEventListener("click", () => showTab("enter"));
+  el("tab-recent").addEventListener("click", () => showTab("recent"));
+
+  el("who-open").addEventListener("click", () => openModal("who-panel"));
+  el("who-close").addEventListener("click", () => { showWho(); closeModal("who-panel"); });
+  el("note-open").addEventListener("click", () => openModal("note-panel"));
+  el("note-close").addEventListener("click", () => closeModal("note-panel"));
+  el("clock-more").addEventListener("click", () => openModal("clock-panel"));
+  el("clock-close").addEventListener("click", () => closeModal("clock-panel"));
+  el("observer").addEventListener("input", showWho);
+  el("site").addEventListener("input", showWho);
   el("clear").addEventListener("click", clearNumbers);
   el("now-button").addEventListener("click", () => {
     el("ts").value = localInputValue(new Date());
@@ -379,9 +410,11 @@ function wire() {
 
 async function start() {
   wire();
+  showTab("enter");
   await loadMetrics();
   await loadClock();
   await loadRecent();
+  showWho();
   document.body.dataset.status = "ready";
 }
 

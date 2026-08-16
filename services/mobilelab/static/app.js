@@ -97,22 +97,29 @@ async function fetchStations() {
 }
 
 function renderBanner(payload) {
-  const banner = el("simulated-banner");
+  const badge = el("simulated-banner");
   const simulated = needsSimulatedBanner(payload.series);
   const untrusted = payload.series.filter((s) => !classifyProvenance(s).trusted);
 
-  banner.classList.toggle("banner-hidden", !simulated);
+  /*
+   * Architecture section 5. The badge is persistent and it is not a tooltip.
+   * It is small because the screen is 1024 by 600, and loud because fake data
+   * that looks real is the failure this rule exists to prevent.
+   */
+  badge.classList.toggle("sim-hidden", !simulated);
   document.body.dataset.simulated = simulated ? "true" : "false";
   document.body.dataset.untrusted = untrusted.length ? "true" : "false";
 
   if (untrusted.length) {
-    el("banner-detail").textContent =
+    badge.textContent = "UNKNOWN SOURCE";
+    el("sim-detail").textContent =
       "The station cannot confirm where these numbers come from. It therefore " +
       "treats them as not real. Do not use them as evidence.";
     el("warning").textContent =
       "A line has no usable provenance. The chart drew it as not real on purpose.";
   } else if (simulated) {
-    el("banner-detail").textContent =
+    badge.textContent = "SIMULATED DATA";
+    el("sim-detail").textContent =
       "A generator made these numbers. Do not use them as evidence about any real place.";
     el("warning").textContent = "";
   } else {
@@ -169,6 +176,27 @@ function renderCaption() {
   document.body.dataset.shiftHours = String(state.shiftHours);
 }
 
+/*
+ * One time formatter, for the axis ticks and for the tooltip.
+ *
+ * The x axis is a LINEAR axis carrying plain milliseconds, not a time axis. So
+ * Chart.js does not know those numbers are times. The axis had a formatter and
+ * the tooltip did not, so a tap on the chart opened a tooltip titled
+ * 1,786,528,800,000. A student reads a raw millisecond count as a broken
+ * screen, and a touch screen shows the tooltip more than anything else.
+ *
+ * The old axis formatter printed the minutes as :00 whatever they were. This
+ * one prints the real minutes, because a 48 hour window buckets by the minute.
+ */
+function formatWhen(value) {
+  const when = new Date(value);
+  const day = String(when.getDate()).padStart(2, "0");
+  const month = when.toLocaleString("en", { month: "short" });
+  const hour = String(when.getHours()).padStart(2, "0");
+  const minute = String(when.getMinutes()).padStart(2, "0");
+  return `${day} ${month} ${hour}:${minute}`;
+}
+
 function renderChart() {
   const { payload } = state;
   const step = stepMillis(payload.axis.map((s) => new Date(s).getTime()));
@@ -188,12 +216,7 @@ function renderChart() {
       type: "linear",
       ticks: {
         maxTicksLimit: 10,
-        callback: (value) => {
-          const when = new Date(value);
-          return `${String(when.getDate()).padStart(2, "0")} ${when.toLocaleString("en", {
-            month: "short",
-          })} ${String(when.getHours()).padStart(2, "0")}:00`;
-        },
+        callback: (value) => formatWhen(value),
       },
       title: { display: true, text: "Time" },
     },
@@ -222,6 +245,16 @@ function renderChart() {
       interaction: { mode: "nearest", intersect: false },
       scales,
       plugins: {
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              if (!items.length) return "";
+              const item = items[0];
+              const when = item.parsed && item.parsed.x !== undefined ? item.parsed.x : item.raw && item.raw.x;
+              return when === undefined || when === null ? "" : formatWhen(when);
+            },
+          },
+        },
         legend: {
           labels: {
             generateLabels: (chart) =>
@@ -296,12 +329,19 @@ function wire() {
 
   el("lag").addEventListener("input", (event) => {
     state.shiftHours = Number(event.target.value);
-    el("lag-value").textContent = `${state.shiftHours} hours`;
+    el("lag-value").textContent = `${state.shiftHours} h`;
     if (state.payload) {
       renderChart();
       renderCaption();
     }
   });
+
+  const openModal = (id) => document.getElementById(id).classList.remove("modal-hidden");
+  const closeModal = (id) => document.getElementById(id).classList.add("modal-hidden");
+  el("detail-open").addEventListener("click", () => openModal("detail-panel"));
+  el("detail-close").addEventListener("click", () => closeModal("detail-panel"));
+  el("simulated-banner").addEventListener("click", () => openModal("sim-panel"));
+  el("sim-close").addEventListener("click", () => closeModal("sim-panel"));
 
   el("use-estimate").addEventListener("click", () => {
     if (!state.estimate || !state.estimate.usable) return;

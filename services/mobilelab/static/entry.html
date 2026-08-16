@@ -4,99 +4,122 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mobile Lab Station - Enter readings</title>
+<link rel="icon" href="/static/brand/favicon.png" type="image/png">
 <link rel="stylesheet" href="/static/style.css">
 <link rel="stylesheet" href="/static/entry.css">
 </head>
 <body data-status="loading">
 
 <header class="bar">
-  <h1>Enter readings</h1>
-  <p class="sub">Type what you measured. The station keeps your numbers.</p>
+  <a class="brand" href="/" title="PlanetWerx">
+    <img class="brand-lockup" src="/static/brand/planetwerx-lockup-white.png" alt="PlanetWerx">
+  </a>
+  <span class="brand-product">Enter readings</span>
+  <nav class="nav">
+    <a href="/">Chart</a>
+    <a href="/entry" aria-current="page">Enter</a>
+    <a href="/knowledge">Learn</a>
+    <a href="/sensors">Sensors</a>
+  </nav>
+  <span class="bar-spacer"></span>
+  <span id="who-now" class="who-now"></span>
 </header>
 
 <div id="clock-alarm" class="alarm alarm-hidden" role="alert">
   <strong>THE STATION CLOCK IS WRONG. YOU CANNOT SAVE.</strong>
-  <p id="clock-alarm-detail"></p>
-  <p class="alarm-advice">
-    The station will not guess a time for you. A wrong time makes the reading
-    useless later. Tell Scott. Do not write the reading here until the clock is
-    correct. Write it on paper.
-  </p>
+  <span id="clock-alarm-detail"></span>
+  <button type="button" id="clock-more" class="btn">Why</button>
 </div>
 
-<main class="entry-main">
+<main class="shell">
 
-  <form id="entry-form" autocomplete="off">
-    <section class="panel">
-      <h2>1. Who and where</h2>
-      <p class="muted">The station keeps these two for the next reading.</p>
-      <div class="field-row">
-        <label class="field">
-          <span class="field-label">Your name</span>
-          <input type="text" id="observer" name="observer" class="big-input"
-                 placeholder="Type your name" enterkeyhint="next">
-        </label>
-        <label class="field">
-          <span class="field-label">Site</span>
-          <input type="text" id="site" name="site" class="big-input"
-                 placeholder="Example: creek bridge" enterkeyhint="next">
-        </label>
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab" id="tab-enter" role="tab" aria-selected="true"
+            aria-controls="panel-enter">Enter a reading</button>
+    <button type="button" class="tab" id="tab-recent" role="tab" aria-selected="false"
+            aria-controls="panel-recent">Last entries</button>
+    <span class="bar-spacer"></span>
+    <button type="button" id="who-open" class="btn">Name and site</button>
+  </div>
+
+  <section class="tabpanel" id="panel-enter" role="tabpanel">
+    <form id="entry-form" autocomplete="off" class="entry-form">
+      <div class="panel metric-panel scroll">
+        <div id="metric-list" class="metric-grid"></div>
       </div>
-    </section>
 
-    <section class="panel">
-      <h2>2. When you measured it</h2>
-      <p class="muted">
-        Change this if you measured earlier. The station also records the time
-        you typed it.
-      </p>
-      <div class="field-row">
-        <label class="field">
-          <span class="field-label">Date and time of the reading</span>
-          <input type="datetime-local" id="ts" name="ts" class="big-input" step="60">
+      <div class="panel save-row">
+        <label class="ctl">
+          <span class="ctl-label">Measured at</span>
+          <input type="datetime-local" id="ts" name="ts" step="60">
         </label>
-        <div class="field">
-          <span class="field-label">&nbsp;</span>
-          <button type="button" id="now-button" class="btn btn-secondary">Use now</button>
-        </div>
+        <button type="button" id="now-button" class="btn">Now</button>
+        <button type="button" id="note-open" class="btn">Note</button>
+        <button type="button" id="clear" class="btn">Clear</button>
+        <button type="submit" id="save" class="btn btn-save">Save reading</button>
+        <p id="save-result" class="save-result"></p>
       </div>
-      <p class="muted" id="ts-note"></p>
-    </section>
+    </form>
+  </section>
 
-    <section class="panel">
-      <h2>3. What you measured</h2>
-      <p class="muted">
-        Fill in only the boxes you measured. Leave the others empty.
-      </p>
-      <div id="metric-list"></div>
-    </section>
-
-    <section class="panel">
-      <h2>4. Anything you noticed</h2>
-      <label class="field">
-        <span class="field-label">Note</span>
-        <textarea id="note" class="big-input" rows="2"
-                  placeholder="Example: the water looked cloudy after the rain"></textarea>
-      </label>
-    </section>
-
-    <section class="panel save-panel">
-      <button type="submit" id="save" class="btn btn-save">Save this reading</button>
-      <button type="button" id="clear" class="btn btn-secondary">Clear the numbers</button>
-      <p id="save-result" class="save-result"></p>
-    </section>
-  </form>
-
-  <section class="panel">
-    <h2>The last few entries</h2>
-    <p class="muted">Look here for a number you typed twice, or a number that looks wrong.</p>
-    <div id="recent"></div>
-    <p>
-      <a class="btn btn-secondary" id="export-link" href="/api/export.csv">Download all data as CSV</a>
-    </p>
+  <section class="tabpanel" id="panel-recent" role="tabpanel" hidden>
+    <div class="panel scroll recent-panel">
+      <div id="recent"></div>
+    </div>
+    <div class="panel save-row">
+      <a class="btn" id="export-link" href="/api/export.csv">Download all data as CSV</a>
+      <span class="muted" id="ts-note"></span>
+    </div>
   </section>
 
 </main>
+
+<div id="who-panel" class="modal modal-hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <h2>Who is measuring, and where</h2>
+    <p class="muted">The station keeps these for the next reading.</p>
+    <label class="field">
+      <span class="field-label">Your name</span>
+      <input type="text" id="observer" class="big-input" placeholder="Type your name">
+    </label>
+    <label class="field">
+      <span class="field-label">Site</span>
+      <input type="text" id="site" class="big-input" placeholder="Example: creek bridge">
+    </label>
+    <div class="modal-actions">
+      <button type="button" id="who-close" class="btn btn-save">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="note-panel" class="modal modal-hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <h2>Anything you noticed</h2>
+    <label class="field">
+      <span class="field-label">Note</span>
+      <textarea id="note" class="big-input" rows="3"
+                placeholder="Example: the water looked cloudy after the rain"></textarea>
+    </label>
+    <div class="modal-actions">
+      <button type="button" id="note-close" class="btn btn-save">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="clock-panel" class="modal modal-hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <h2>The station clock is wrong</h2>
+    <p id="clock-panel-detail"></p>
+    <p class="muted">
+      The station will not guess a time for you. A wrong time makes the reading
+      useless later. Tell Scott. Write the reading on paper until the clock is
+      correct.
+    </p>
+    <div class="modal-actions">
+      <button type="button" id="clock-close" class="btn">Close</button>
+    </div>
+  </div>
+</div>
 
 <div id="correct-panel" class="modal modal-hidden" role="dialog" aria-modal="true">
   <div class="modal-card">
@@ -112,13 +135,14 @@
     </label>
     <div class="modal-actions">
       <button type="button" id="correct-save" class="btn btn-save">Save the fix</button>
-      <button type="button" id="correct-delete" class="btn btn-danger">Remove this reading</button>
-      <button type="button" id="correct-cancel" class="btn btn-secondary">Cancel</button>
+      <button type="button" id="correct-delete" class="btn btn-danger">Remove</button>
+      <button type="button" id="correct-cancel" class="btn">Cancel</button>
     </div>
     <p id="correct-result" class="save-result"></p>
   </div>
 </div>
 
 <script type="module" src="/static/entry.js"></script>
+<script src="/static/fit.js"></script>
 </body>
 </html>

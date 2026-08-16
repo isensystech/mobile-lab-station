@@ -1,0 +1,55 @@
+/*
+ * The chart page, sized for 1024 by 600.
+ *
+ * The chart takes every pixel the controls and the caption do not need. The
+ * page never scrolls. Anything secondary lives in a popup.
+ */
+
+.chart-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  position: relative;
+}
+/*
+ * The canvas needs a box with a definite size. Given only a flex parent,
+ * Chart.js grows the canvas and pushes the caption and the permanent strip off
+ * the bottom of a 600 pixel screen. Absolute inset fixes the box first.
+ */
+.chart-holder { position: absolute; inset: 0.4rem 0.5rem; }
+
+.control-panel { flex: 0 0 auto; }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.7rem;
+  margin-bottom: 0.35rem;
+}
+.ctl { display: flex; align-items: center; gap: 0.35rem; font-size: 0.86rem; }
+.ctl-label { color: var(--muted); font-weight: 700; white-space: nowrap; }
+.ctl select {
+  min-height: var(--touch);
+  font-size: 0.94rem;
+  padding: 0 0.4rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+.ctl-check input { width: 26px; height: 26px; }
+.ctl-check span { font-weight: 700; }
+.ctl-slider input[type="range"] { width: 210px; height: var(--touch); }
+.ctl-slider output {
+  font-variant-numeric: tabular-nums;
+  min-width: 3.4rem;
+  font-weight: 700;
+}
+.ctl-hidden { display: none; }
+
+.caption-headline { font-size: 1.06rem; font-weight: 700; margin: 0; }
+.caption-detail { margin: 0.1rem 0 0; color: var(--muted); font-size: 0.86rem; }
+.caption-shift { margin: 0.1rem 0 0; font-size: 0.86rem; }
+
+.power-result { margin: 0.6rem 0 0; font-weight: 700; }

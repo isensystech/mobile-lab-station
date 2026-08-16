@@ -19,6 +19,11 @@ and Scott configures it in person at the console. No script reads or writes `wla
 | `eyewitness-entry.sh` | Prints the entry form address and four tasks to do by hand. No arguments, no sudo. |
 | `verify-bridge.sh` | Runs the WQL bridge gates against a generated dive. |
 | `eyewitness-bridge.sh` | Posts a dive and shows it land, then on the chart. No arguments, no sudo. |
+| `verify-kb.sh` | Runs the knowledge base and sensor suite gates in headless Chromium. |
+| `install-kiosk.sh` | Installs the kiosk unit, the escape keybinding, and the narrow power permission. |
+| `verify-kiosk.sh` | Runs the kiosk gates. Three of them need Scott at the screen. |
+| `eyewitness-kiosk.sh` | The four tasks Scott does by hand: restart, escape, power pull, buttons. |
+| `button-probe.sh` | Watches every input while somebody presses the screen buttons. |
 | `eyewitness.sh` | Shows data going in. No arguments, no sudo. |
 | `eyewitness-api.sh` | Shows data coming back out through the API. No arguments, no sudo. |
 | `install-mosquitto.sh` | Installs Mosquitto from Debian. Installs the station configuration. Enables the unit. |
@@ -27,6 +32,9 @@ and Scott configures it in person at the console. No script reads or writes `wla
 | `verify.sh` | Runs the eight gates. Prints the blind spot for each one. |
 | `backup/install-backup.sh` | Installs and starts the nightly dump timer. |
 | `backup/mobilelab-pg-backup.sh` | Runs one dump. |
+| `backup/restore-check.sh` | Restores a dump into a scratch database, checks it, drops it. |
+| `backup/offbox-pull.sh` | **Runs on the laptop.** Copies the dumps off the Pi. |
+| `backup/install-offbox-pull.sh` | **Runs on the laptop.** Schedules that copy every night. |
 
 ## Why the packagecloud repository
 
@@ -51,10 +59,48 @@ detail: continuous_agg
 TimescaleDB puts circular foreign keys in its own catalog. The warning is expected. It
 does not damage the dump.
 
-**Restore is untested.** Nobody has restored one of these dumps into an empty cluster.
-A TimescaleDB restore needs extra steps, because the extension must be present before
-the data lands. Test a restore before you trust the backup. Write the result into
-`docs/MobileLab-Arch.md` section 16.
+**Restore is tested.** Tested 2026-08-16 with `backup/restore-check.sh`.
+
+The warning above did not appear in the restore. `pg_restore` finished with exit code 0,
+no errors and no warnings. So the circular foreign key warning is a dump time message
+only. It did not become a restore problem.
+
+Run the check yourself:
+
+```
+sudo ops/backup/restore-check.sh /var/backups/mobilelab/<file>.dump
+```
+
+The script restores into a scratch database, compares it with the live database, and
+drops the scratch database. It refuses to run if the scratch name matches the live name.
+
+### What the dump carries
+
+| Item | In the dump |
+|---|---|
+| `readings`, `observations`, `dives`, `stations` rows | yes |
+| The `readings` hypertable | yes |
+| `readings_1m` and `readings_1h`, with materialized data | yes |
+| The two refresh policies | yes |
+
+The rollups survive with real data. This was tested the hard way. The check sets
+`materialized_only`, deletes every raw reading in the scratch copy, and then reads the
+rollups again. They still answered with 726 and 691 buckets. So the numbers came from
+the dump, not from live computation.
+
+### What the dump does NOT carry
+
+**Roles.** `pg_dump` writes one database. Roles live in the cluster. The dump holds 11
+grant entries that name `mobilelab` and `sensoruser`, but it does not hold the roles
+themselves. A restore onto a fresh card must make the roles first, with
+`bootstrap-db.sh`, or the grants fail.
+
+**`.env`.** It holds the database password and the station labels. It is correctly kept
+out of git. It is also on the microSD card only, and no backup copies it. If the card
+dies, `.env` dies with it.
+
+Neither gap stops a restore onto THIS Pi, where the roles and `.env` already exist. Both
+gaps stop a rebuild onto a NEW card.
 
 ## The gates
 
@@ -119,3 +165,40 @@ more than usual while hard rule 9 runs under its microSD exception, because a
 worn card corrupts silently.
 
 Turn them on with `pg_checksums --enable` on a stopped cluster.
+
+## The physical buttons on the ROADOM screen
+
+**Investigated 2026-08-16, before designing anything.**
+
+The Pi enumerates these inputs:
+
+| Device | What it is |
+|---|---|
+| `yldzkj USB2IIC_CTP_CONTROL` | The screen's TOUCH panel. This is the only device the screen presents. |
+| `vc4-hdmi-0`, `vc4-hdmi-1` | HDMI audio and CEC endpoints, not buttons. |
+| `pwr_button` | The Pi 5's OWN button on a GPIO. Not the screen. |
+| `Logitech M705`, `MK700` | Scott's wireless mouse and keyboard. |
+
+`lsusb` shows only the touch controller and the Logitech receiver. **The screen
+presents no button device over USB.**
+
+That is strong evidence and it is not proof. A monitor button can reach a Pi
+over HDMI CEC, and this Pi has `/dev/cec0` and `/dev/cec1`. Until somebody
+presses the button while something watches, nobody knows.
+
+**To settle it:**
+
+```
+sudo ops/button-probe.sh 30
+```
+
+Press each screen button while it counts down.
+
+- **If EVENT lines appear**, the Pi sees the button. It can then be ignored,
+  remapped, or kept as the deliberate escape. Report which button and which
+  line.
+- **If nothing appears**, the button is wired to the monitor's own board. No
+  setting on the Pi can change what it does. That needs a physical fix, such as
+  tape or a cover, and not a software guard.
+
+Do not write a software guard for a button the Pi cannot see.
