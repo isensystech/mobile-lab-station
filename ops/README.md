@@ -17,6 +17,8 @@ and Scott configures it in person at the console. No script reads or writes `wla
 | `verify-entry.sh` | Runs the manual entry gates, at 14 day scale. It breaks and restores the clock. |
 | `eyewitness-chart.sh` | Prints the chart address and what to look for. No arguments, no sudo. |
 | `eyewitness-entry.sh` | Prints the entry form address and four tasks to do by hand. No arguments, no sudo. |
+| `verify-bridge.sh` | Runs the WQL bridge gates against a generated dive. |
+| `eyewitness-bridge.sh` | Posts a dive and shows it land, then on the chart. No arguments, no sudo. |
 | `eyewitness.sh` | Shows data going in. No arguments, no sudo. |
 | `eyewitness-api.sh` | Shows data coming back out through the API. No arguments, no sudo. |
 | `install-mosquitto.sh` | Installs Mosquitto from Debian. Installs the station configuration. Enables the unit. |

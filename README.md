@@ -8,8 +8,8 @@ summary of it. If the two disagree, the architecture document wins.
 
 ## What this repository contains now
 
-This repository holds the data spine only. The spine is the broker, the database, and
-the schema.
+The spine runs, and so does everything a person touches: the entry form, the overlay
+chart, and the logger bridge.
 
 ```
 manual entry form ─┐
@@ -28,8 +28,8 @@ synthetic fixture ─┘
 | Local API | BUILT |
 | Overlay chart page | BUILT |
 | Manual entry form | BUILT |
+| WQL logger bridge | BUILT |
 | gpsd driver | NOT BUILT |
-| WQL bridge | NOT BUILT |
 | Kiosk UI | NOT BUILT |
 | Offload service | NOT BUILT |
 
@@ -149,8 +149,13 @@ Close it before then, in one of these ways.
 - Put a token in front of the write paths when write paths exist.
 - Keep the station on its own AP, with no route to a school network.
 
-The API is read only today. It has no endpoint that changes data. That limits
-the damage, but it does not remove the exposure.
+**The API is NOT read only any more.** It was, until the entry form landed.
+Today anybody on the network can save a reading, correct one, or delete one
+through `/api/observations` and `/api/readings/{id}`. The WQL bridge on port
+8081 also accepts an upload from anybody who can reach it.
+
+That raises the stakes on the paragraph above. Close this before a classroom
+network, not after.
 
 ## Deployment model
 

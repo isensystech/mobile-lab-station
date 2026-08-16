@@ -16,6 +16,9 @@ record shape changes every service at once.
 | `static/chart-core.js` | none | The chart rules. The live page and the self test both load it. |
 | `mobilelab.metrics` | none | The metric catalogue, unit conversion, and the plausible range. |
 | `mobilelab.entry` | none | Manual entry: batches, corrections, export, and the clock check. |
+| `mobilelab.bridge` | `mobilelab-bridge.service` | Accepts a dive CSV over HTTP. Republishes every row to MQTT. |
+| `mobilelab.dive` | none | The 25 column dive CSV contract, and the parser. |
+| `mobilelab.divefixture` | none | Writes a dive CSV for testing. NOT a real logger file. |
 | `static/entry.js` | none | The entry form. |
 | `mobilelab.fixture` | `mobilelab-fixture.service` | Makes a seeded rainfall and salinity pair. Publishes it. |
 | `mobilelab.plot` | none | Draws two series in a terminal, from the API or from the database. |
@@ -199,7 +202,6 @@ answer. Without that the chart keeps drawing the old value. See `db/README.md`.
 | Service | Job | Tier |
 |---|---|---|
 | `kiosk` | The Chromium web app for the ROADOM 10.1 inch touchscreen. | V1 |
-| `wql-bridge` | Accepts a dive over HTTP. Republishes it to MQTT. | V1 |
 | `gpsd-driver` | Reads gpsd. Publishes position and time. | V1 |
 | `offload` | Drains TimescaleDB to Supabase when a default route appears. | V2 |
 | `modbus` | Polls the RS485 bus. One poller serves four sensors. | V2 |

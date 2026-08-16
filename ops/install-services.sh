@@ -50,7 +50,8 @@ echo "==> letting the service user read the code"
 chmod -R a+rX "${REPO_ROOT}/services" "${VENV}"
 
 echo "==> installing the systemd units"
-for unit in mobilelab-writer.service mobilelab-fixture.service mobilelab-api.service; do
+for unit in mobilelab-writer.service mobilelab-fixture.service mobilelab-api.service \
+            mobilelab-bridge.service; do
   sed "s|__REPO_ROOT__|${REPO_ROOT}|g" \
     "${SCRIPT_DIR}/systemd/${unit}" > "/etc/systemd/system/${unit}"
   chmod 0644 "/etc/systemd/system/${unit}"
@@ -66,9 +67,13 @@ systemctl restart mobilelab-writer.service
 echo "==> enabling and restarting the API"
 systemctl enable mobilelab-api.service
 systemctl restart mobilelab-api.service
+
+echo "==> enabling and restarting the WQL bridge"
+systemctl enable mobilelab-bridge.service
+systemctl restart mobilelab-bridge.service
 sleep 5
 
-for unit in mobilelab-writer mobilelab-api; do
+for unit in mobilelab-writer mobilelab-api mobilelab-bridge; do
   echo "==> ${unit} status"
   systemctl status "${unit}.service" --no-pager 2>&1 | head -8
   echo

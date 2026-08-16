@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     mobilelab_api_host: str = "0.0.0.0"
     mobilelab_api_port: int = 8000
 
+    # The bridge listens where the WQL loggers can reach it. When hostapd runs
+    # on wlan0 the loggers join that network and POST here.
+    mobilelab_bridge_host: str = "0.0.0.0"
+    mobilelab_bridge_port: int = 8081
+
     def dsn(self) -> str:
         return (
             f"host={self.mobilelab_db_host} "

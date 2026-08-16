@@ -24,10 +24,10 @@ log = logging.getLogger(__name__)
 INSERT_SQL = """
 insert into public.readings
   (station_id, sensor, metric, value, unit, ts, lat, lon, source,
-   observation_id, value_raw, unit_raw, ref_distance_m, quality_flag, provenance)
+   observation_id, dive_id, value_raw, unit_raw, ref_distance_m, quality_flag, provenance)
 values
   (%(station_id)s, %(sensor)s, %(metric)s, %(value)s, %(unit)s, %(ts)s,
-   %(lat)s, %(lon)s, %(source)s, %(observation_id)s, %(value_raw)s,
+   %(lat)s, %(lon)s, %(source)s, %(observation_id)s, %(dive_id)s, %(value_raw)s,
    %(unit_raw)s, %(ref_distance_m)s, %(quality_flag)s, %(provenance)s)
 returning id
 """
@@ -73,9 +73,8 @@ class Database:
         params["provenance"] = (
             json.dumps(params["provenance"]) if params["provenance"] is not None else None
         )
-        params["observation_id"] = (
-            str(params["observation_id"]) if params["observation_id"] is not None else None
-        )
+        for key in ("observation_id", "dive_id"):
+            params[key] = str(params[key]) if params[key] is not None else None
 
         for attempt in (1, 2):
             conn = self.connect()

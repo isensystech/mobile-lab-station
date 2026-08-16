@@ -50,6 +50,7 @@ class Reading(BaseModel):
     source: str = Field(min_length=1)
 
     observation_id: UUID | None = None
+    dive_id: UUID | None = None
     value_raw: float | None = None
     unit_raw: str | None = None
     ref_distance_m: float | None = None

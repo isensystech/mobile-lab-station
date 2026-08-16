@@ -33,6 +33,7 @@ TimescaleDB needs this for `CREATE EXTENSION` and for continuous aggregates.
 | `0010_readings_provenance.sql` | Adds `provenance` to `readings`. A generator records its seed there. |
 | `0011_widen_cagg_refresh.sql` | Widens the aggregate refresh windows to 7 days and 90 days. |
 | `0012_cagg_owner.sql` | Gives the `mobilelab` role ownership of both rollups, so a correction can refresh them. |
+| `0013_dives.sql` | Adds the `dives` manifest and `readings.dive_id`. Makes a repeat dive upload safe. |
 
 ## A rollup keeps data you deleted
 

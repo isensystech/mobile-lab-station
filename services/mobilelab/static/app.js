@@ -35,12 +35,30 @@ const state = {
 
 const el = (id) => document.getElementById(id);
 
+/*
+ * Each series can be named on the address line. Without that, the chart could
+ * only ever draw two series from ONE source, and the whole point of the
+ * comparison lane is drawing a dive against the rain that caused it.
+ */
 function params() {
   const search = new URLSearchParams(window.location.search);
+  const shared = search.get("source");
+  const pick = (key, fallback) => search.get(key) || fallback;
   return {
     hours: Number(search.get("hours") || el("range").value || 168),
     station: search.get("station_id") || el("station").value || "",
-    source: search.get("source") || PAIR.a.source,
+    a: {
+      sensor: pick("a_sensor", PAIR.a.sensor),
+      metric: pick("a_metric", PAIR.a.metric),
+      source: pick("a_source", shared || PAIR.a.source),
+      name: pick("a_name", pick("a_metric", PAIR.a.name)),
+    },
+    b: {
+      sensor: pick("b_sensor", PAIR.b.sensor),
+      metric: pick("b_metric", PAIR.b.metric),
+      source: pick("b_source", shared || PAIR.b.source),
+      name: pick("b_name", pick("b_metric", PAIR.b.name)),
+    },
   };
 }
 
@@ -48,13 +66,16 @@ async function fetchPair() {
   const chosen = params();
   const to = new Date();
   const from = new Date(to.getTime() - chosen.hours * 3600000);
+  PAIR.a = { ...PAIR.a, ...chosen.a };
+  PAIR.b = { ...PAIR.b, ...chosen.b };
+
   const query = new URLSearchParams({
-    a_sensor: PAIR.a.sensor,
-    a_metric: PAIR.a.metric,
-    a_source: chosen.source,
-    b_sensor: PAIR.b.sensor,
-    b_metric: PAIR.b.metric,
-    b_source: chosen.source,
+    a_sensor: chosen.a.sensor,
+    a_metric: chosen.a.metric,
+    a_source: chosen.a.source,
+    b_sensor: chosen.b.sensor,
+    b_metric: chosen.b.metric,
+    b_source: chosen.b.source,
     from: from.toISOString(),
     to: to.toISOString(),
   });
