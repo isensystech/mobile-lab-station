@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes — Mobile Lab Station</title>
+<style>
+:root{
+  --paper:#E8E4D3;
+  --paper-deep:#DAD5C0;
+  --ink:#101E1B;
+  --ink-soft:#4E5D58;
+  --sounding:#14476B;
+  --magenta:#A81D63;
+  --hair:rgba(16,30,27,.22);
+  --hair-soft:rgba(16,30,27,.10);
+  --tap:56px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:"DejaVu Sans","Liberation Sans","Noto Sans",system-ui,sans-serif;
+  font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%;
+}
+.wrap{max-width:1220px;margin:0 auto;padding:28px 24px 64px}
+.eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:700;margin:0 0 10px}
+.title{font-size:34px;line-height:1.1;font-weight:700;margin:0 0 10px;letter-spacing:-.01em}
+.lede{margin:0;max-width:62ch;color:var(--ink-soft);font-size:17px}
+.rule{height:0;border:0;border-top:1px solid var(--hair);margin:26px 0 0;position:relative}
+.rule::after{content:"";position:absolute;left:0;right:0;top:4px;
+  border-top:1px dotted var(--hair-soft)}
+
+.cols{display:grid;grid-template-columns:280px 1fr;gap:34px;margin:26px 0 0;align-items:start}
+
+.toc{position:sticky;top:24px}
+.toc-head{font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  font-weight:700;color:var(--ink-soft);margin:0 0 12px}
+.toc-item{
+  display:block;width:100%;text-align:left;
+  min-height:var(--tap);padding:12px 14px;margin:0 0 8px;
+  background:transparent;border:1px solid var(--hair);
+  color:var(--ink);font:inherit;cursor:pointer;
+}
+.toc-item:hover{background:var(--paper-deep)}
+.toc-item[aria-current="true"]{
+  background:var(--ink);color:var(--paper);border-color:var(--ink);
+}
+.toc-t{display:block;font-size:16px;font-weight:700;line-height:1.25}
+.toc-s{display:block;font-size:12.5px;margin-top:3px;opacity:.75}
+
+.doc{max-width:70ch}
+.doc h2{font-size:22px;font-weight:700;margin:34px 0 10px;line-height:1.25}
+.doc h2:first-child{margin-top:0}
+.doc p{margin:0 0 14px}
+.doc b{font-weight:700}
+.doc ol,.doc ul{margin:0 0 14px;padding-left:22px}
+.doc li{margin:0 0 7px}
+.doc table{border-collapse:collapse;width:100%;margin:0 0 18px;font-size:14.5px}
+.doc th,.doc td{border:1px solid var(--hair);padding:9px 11px;text-align:left;vertical-align:top}
+.doc th{background:var(--paper-deep);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+
+.doc-head{border-bottom:1px solid var(--hair);padding:0 0 16px;margin:0 0 22px}
+.doc-head h1{font-size:29px;margin:0 0 6px;line-height:1.15}
+.doc-head p{margin:0;color:var(--ink-soft);font-size:16px}
+.meta{margin:10px 0 0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:700}
+
+.callout{
+  border-left:4px solid var(--sounding);
+  background:rgba(20,71,107,.06);
+  padding:14px 18px;margin:0 0 18px;
+}
+.callout p:last-child{margin:0}
+
+.try{border:1px solid var(--hair);background:var(--paper-deep);padding:18px 20px;margin:26px 0 0}
+.try h2{margin:0 0 10px;font-size:13px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-soft)}
+
+.hidden{display:none}
+
+a.back{display:inline-flex;align-items:center;min-height:var(--tap);
+  margin:30px 0 0;padding:0 20px;border:1px solid var(--ink);color:var(--ink);
+  text-decoration:none;font-size:14px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+a.back:hover{background:var(--ink);color:var(--paper)}
+a:focus-visible,button:focus-visible{outline:3px solid var(--magenta);outline-offset:2px}
+
+@media (max-width:900px){
+  .cols{grid-template-columns:1fr}
+  .toc{position:static}
+  .title{font-size:27px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Mobile Lab Station</p>
+  <h1 class="title">Notes</h1>
+  <p class="lede">Short notes on what the station measures. Read one before you collect,
+  and again when the numbers surprise you.</p>
+
+  <hr class="rule">
+
+  <div class="cols">
+
+    <nav class="toc">
+      <p class="toc-head">Notes</p>
+      <button class="toc-item" data-doc="salinity" aria-current="true">
+        <span class="toc-t">Salinity</span>
+        <span class="toc-s">What it is, and why it changes</span>
+      </button>
+      <button class="toc-item" data-doc="rainfall">
+        <span class="toc-t">Rainfall</span>
+        <span class="toc-s">Two ways to measure rain</span>
+      </button>
+    </nav>
+
+    <main>
+
+      <article class="doc" id="doc-salinity">
+        <header class="doc-head">
+          <h1>Salinity</h1>
+          <p>What salinity is, and why it changes</p>
+          <p class="meta">4 minutes</p>
+        </header>
+
+        <h2>What salinity is</h2>
+        <p>Salinity is the quantity of salt in water. We measure it in practical salinity
+        units. The short form is PSU.</p>
+        <p>Fresh water has a salinity near 0 PSU. Sea water has a salinity near 35 PSU.
+        The water in a lagoon or an estuary is between the two. We call this water
+        brackish.</p>
+
+        <h2>How the logger measures salinity</h2>
+        <p>The logger does not taste the water. It measures how well the water carries
+        electricity.</p>
+        <p>Salt water carries electricity well. Fresh water carries electricity poorly.
+        The logger sends a small current through the water and measures the result. This
+        measurement is the electrical conductivity, or EC.</p>
+        <p>The logger then calculates salinity from the conductivity. Temperature changes
+        the result, so the logger measures temperature at the same time and corrects for
+        it.</p>
+        <div class="callout">
+          <p><b>This is important.</b> The logger measures conductivity. It calculates
+          salinity. Many instruments work this way. They measure one quantity and
+          calculate the quantity you asked for.</p>
+        </div>
+
+        <h2>Why salinity changes</h2>
+        <p>Salinity changes when the quantity of salt changes, or when the quantity of
+        water changes.</p>
+        <p>The quantity of salt rarely changes quickly. The quantity of water changes
+        often. This gives us two common causes.</p>
+        <p><b>Fresh water arrives.</b> Rain falls on the land. The rain flows into creeks
+        and ditches, and the creeks carry it to the lagoon. This fresh water mixes with
+        the salt water and makes it less salty. We call this dilution.</p>
+        <p><b>Water evaporates.</b> The sun heats the surface. Water leaves as vapour, but
+        the salt stays behind. The remaining water becomes more salty.</p>
+        <p>Tides also move salt water in and out. A rising tide usually increases salinity.
+        A falling tide usually decreases it.</p>
+
+        <h2>The delay</h2>
+        <p>Rain does not change the salinity at once.</p>
+        <p>The rain must first fall on the land. It must then flow across the ground, into
+        a ditch, into a creek, and out to the water where the logger sits. This journey
+        takes time.</p>
+        <p>So the salinity falls <b>after</b> the rain, not during it. The size of the
+        delay depends on the distance the water travels and on the shape of the land.</p>
+        <p>This delay is useful. If you know the delay, you can compare a rainfall record
+        with a salinity record and see whether the two agree.</p>
+
+        <h2>Why salinity matters</h2>
+        <p>Plants and animals in an estuary live within a range of salinity. Seagrass,
+        oysters, and fish each have a range that suits them.</p>
+        <p>A slow change gives them time to adjust. A large and sudden change does not. A
+        heavy storm can push the salinity outside the range for a species, and the species
+        can die.</p>
+        <p>This is one reason we record salinity over time. One measurement tells you the
+        salinity now. A record tells you how quickly it changed, and that is often the more
+        important fact.</p>
+
+        <section class="try">
+          <h2>Try this</h2>
+          <ul>
+            <li>Find a fall in salinity in your data. Note the time it started.</li>
+            <li>Look at the rainfall record for the same day. Did rain fall before the
+            fall in salinity?</li>
+            <li>Measure the delay between the two. Write it down.</li>
+            <li>Repeat this for a second event. Is the delay the same?</li>
+          </ul>
+          <p>If the delay is not the same, ask what was different. The quantity of rain,
+          the tide, and the condition of the ground before the rain can all change the
+          result.</p>
+        </section>
+      </article>
+
+      <article class="doc hidden" id="doc-rainfall">
+        <header class="doc-head">
+          <h1>Rainfall</h1>
+          <p>Two ways to measure rain, and why they disagree</p>
+          <p class="meta">5 minutes</p>
+        </header>
+
+        <h2>Two ways to know that it rained</h2>
+        <p>You can measure the rain where you stand. You can also read a record that
+        somebody else made.</p>
+        <p>Both are useful. Both are correct. They do not always agree, and the reason they
+        disagree is worth understanding.</p>
+
+        <h2>A rain gauge</h2>
+        <p>A rain gauge is a container with a known opening. Rain falls into the opening
+        and collects in the container. You read the depth on a scale.</p>
+        <p>The measurement is a depth, usually in millimetres. A reading of 10 mm means the
+        rain would lie 10 mm deep on flat ground.</p>
+        <p>A rain gauge is accurate, but it measures one place only. It tells you what fell
+        on the gauge. It does not tell you what fell on the next street.</p>
+        <div class="callout">
+          <p><b>Where you put the gauge changes the result.</b> Keep the gauge away from
+          buildings and trees. A wall or a branch can block the rain, or it can direct
+          extra rain into the container. Record the position of your gauge and do not move
+          it.</p>
+        </div>
+
+        <h2>A public rainfall record</h2>
+        <p>Weather services publish rainfall records. They build these records from radar,
+        from satellites, and from a network of stations.</p>
+        <p>To cover a whole country, the service divides the map into cells. It reports one
+        value for each cell. A cell can be several kilometres across.</p>
+        <p>The value for a cell is an average across the whole cell. This is a sensible way
+        to cover a large area with a limited number of instruments.</p>
+
+        <h2>Scale is not accuracy</h2>
+        <p>Here is the important idea.</p>
+        <p>A public record can be accurate and still be wrong for your creek.</p>
+        <p>Some storms are small. A summer storm can rain hard on one block and leave the
+        next block dry. If that storm covers a small part of a large cell, the average for
+        the cell stays low. The record is a correct average. It is still a poor description
+        of your creek.</p>
+        <p>Your gauge has the opposite property. It describes one place very well, and it
+        describes nowhere else at all.</p>
+        <table>
+          <thead><tr><th></th><th>Rain gauge</th><th>Public record</th></tr></thead>
+          <tbody>
+            <tr><td><b>Area</b></td><td>one point</td>
+              <td>a cell, several kilometres across</td></tr>
+            <tr><td><b>Tells you</b></td><td>exactly what fell there</td>
+              <td>the average across the cell</td></tr>
+            <tr><td><b>Misses</b></td><td>everywhere else</td>
+              <td>small storms inside the cell</td></tr>
+          </tbody>
+        </table>
+        <p>Neither source is better. They answer different questions.</p>
+
+        <h2>What to do when they disagree</h2>
+        <p>Do not decide that one source is lying. Ask what each source can see.</p>
+        <ol>
+          <li>Check the time. The two records must cover the same period.</li>
+          <li>Check the position. How far is your gauge from the centre of the cell?</li>
+          <li>Check the size of the storm. A small storm explains a disagreement. A large
+          storm over many hours does not.</li>
+          <li>Check your gauge. Is it clear of obstructions? Did somebody empty it?</li>
+        </ol>
+        <p>If your gauge shows rain and the public record does not, and the storm was small
+        and local, then you have found the limit of the public record. You have not found
+        an error.</p>
+        <p>This is a real result. Record it.</p>
+
+        <h2>Why your measurement counts</h2>
+        <p>Nobody measures the rain on your creek. The nearest official station may be many
+        kilometres away.</p>
+        <p>When you read your gauge and write the number down, you create information that
+        did not exist before. If you do this often, and if you record where the gauge is,
+        your record becomes useful to other people.</p>
+        <p>Volunteer rain gauge networks work in exactly this way. Many of the rainfall
+        records that scientists use come from people who read a gauge each morning and
+        wrote the number down.</p>
+
+        <section class="try">
+          <h2>Try this</h2>
+          <ul>
+            <li>Read your gauge at the same time each day. Record 0 mm on dry days. A dry
+            day is data.</li>
+            <li>Find the public rainfall record for the same day and the same place. Write
+            both numbers side by side.</li>
+            <li>After two weeks, count the days when the two agree and the days when they
+            do not.</li>
+            <li>Look at the days that disagree. What was different about those days?</li>
+          </ul>
+          <p>Most days will probably agree. The days that do not are the interesting
+          ones.</p>
+        </section>
+      </article>
+
+    </main>
+  </div>
+
+  <a class="back" href="/">Back to charts</a>
+
+</div>
+
+<script>
+(function(){
+  var buttons = document.querySelectorAll(".toc-item");
+  var docs = document.querySelectorAll(".doc");
+  function show(slug){
+    docs.forEach(function(d){ d.classList.toggle("hidden", d.id !== "doc-" + slug); });
+    buttons.forEach(function(b){
+      b.setAttribute("aria-current", String(b.dataset.doc === slug));
+    });
+    window.scrollTo(0, 0);
+  }
+  buttons.forEach(function(b){
+    b.addEventListener("click", function(){ show(b.dataset.doc); });
+  });
+})();
+</script>
+</body>
+</html>

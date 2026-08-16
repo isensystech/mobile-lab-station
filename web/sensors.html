@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sensors — Mobile Lab Station</title>
+<style>
+:root{
+  --paper:#E8E4D3;
+  --paper-deep:#DAD5C0;
+  --ink:#101E1B;
+  --ink-soft:#4E5D58;
+  --sounding:#14476B;
+  --shoal:#B4D2DD;
+  --magenta:#A81D63;
+  --hair:rgba(16,30,27,.22);
+  --hair-soft:rgba(16,30,27,.10);
+  --tap:56px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"DejaVu Sans","Liberation Sans","Noto Sans",system-ui,sans-serif;
+  font-size:16px;line-height:1.5;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:1220px;margin:0 auto;padding:28px 24px 64px}
+
+.eyebrow{
+  font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:700;margin:0 0 10px;
+}
+.title{
+  font-size:34px;line-height:1.1;font-weight:700;margin:0 0 10px;
+  letter-spacing:-.01em;
+}
+.lede{margin:0;max-width:62ch;color:var(--ink-soft);font-size:17px}
+
+.rule{
+  height:0;border:0;border-top:1px solid var(--hair);
+  margin:26px 0 0;position:relative;
+}
+.rule::after{
+  content:"";position:absolute;left:0;right:0;top:4px;
+  border-top:1px dotted var(--hair-soft);
+}
+
+/* legend key: the chart's own symbology, used as the talking point */
+.key{
+  margin:26px 0 0;padding:18px 20px;
+  background:var(--paper-deep);
+  border:1px solid var(--hair);
+}
+.key-head{
+  font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  font-weight:700;margin:0 0 14px;color:var(--ink-soft);
+}
+.key-rows{display:grid;gap:14px;grid-template-columns:repeat(3,1fr)}
+.key-row{display:flex;gap:12px;align-items:flex-start}
+.key-txt{font-size:13.5px;line-height:1.45}
+.key-txt b{display:block;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
+.key-txt span{color:var(--ink-soft)}
+
+.sym{flex:0 0 26px;height:26px;margin-top:2px}
+
+.count{
+  margin:18px 0 0;font-size:14px;color:var(--ink-soft);
+}
+.count b{color:var(--ink);font-weight:700}
+
+.grid{
+  display:grid;gap:16px;margin:22px 0 0;
+  grid-template-columns:repeat(3,1fr);
+}
+.tile{
+  border:1px solid var(--hair);
+  background:#EFECDE;
+  padding:18px 18px 16px;
+  min-height:190px;
+  display:flex;flex-direction:column;
+}
+.tile-planned{
+  background:transparent;
+  border-style:dashed;
+  border-color:rgba(16,30,27,.34);
+}
+
+.tile-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.tile-name{font-size:17px;font-weight:700;margin:0;line-height:1.25}
+.chip{
+  flex:0 0 auto;font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  font-weight:700;padding:5px 8px;border:1px solid currentColor;white-space:nowrap;
+}
+.chip-live{color:var(--sounding)}
+.chip-manual{color:var(--magenta)}
+.chip-planned{color:var(--ink-soft)}
+
+/* soundings: a real value, shown the way a chart shows a depth */
+.sounding{
+  margin:16px 0 0;
+  font-variant-numeric:tabular-nums;
+  font-size:38px;font-weight:700;line-height:1;
+  letter-spacing:-.02em;
+}
+.sounding-live{color:var(--sounding)}
+.sounding-manual{color:var(--magenta)}
+.unit{font-size:15px;font-weight:600;margin-left:6px;letter-spacing:.02em}
+.stamp{margin:7px 0 0;font-size:12px;color:var(--ink-soft)}
+
+.nodata{
+  margin:16px 0 0;padding:10px 0 0;
+  border-top:1px dotted var(--hair);
+  font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:700;color:var(--ink-soft);
+}
+.would{margin:9px 0 0;font-size:13.5px;color:var(--ink-soft);line-height:1.45}
+.would b{color:var(--ink);font-weight:600}
+
+.chans{
+  margin:auto 0 0;padding:12px 0 0;
+  border-top:1px solid var(--hair-soft);
+  font-size:12.5px;color:var(--ink-soft);line-height:1.5;
+}
+
+.note{
+  margin:30px 0 0;padding:18px 20px;
+  border-left:4px solid var(--magenta);
+  background:rgba(168,29,99,.06);
+  font-size:14.5px;max-width:78ch;
+}
+.note b{letter-spacing:.06em;text-transform:uppercase;font-size:12px;display:block;
+  color:var(--magenta);margin:0 0 7px}
+
+a.back{
+  display:inline-flex;align-items:center;min-height:var(--tap);
+  margin:26px 0 0;padding:0 20px;
+  border:1px solid var(--ink);color:var(--ink);text-decoration:none;
+  font-size:14px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;
+}
+a.back:hover{background:var(--ink);color:var(--paper)}
+a:focus-visible,button:focus-visible{outline:3px solid var(--magenta);outline-offset:2px}
+
+@media (max-width:1000px){
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .key-rows{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .grid{grid-template-columns:1fr}
+  .title{font-size:27px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Mobile Lab Station</p>
+  <h1 class="title">Sensors</h1>
+  <p class="lede">Every measurement this station can hold. The symbols follow chart
+  convention: what is surveyed, what is noted by hand, and what is not surveyed yet.</p>
+
+  <hr class="rule">
+
+  <section class="key">
+    <p class="key-head">Key</p>
+    <div class="key-rows">
+
+      <div class="key-row">
+        <svg class="sym" viewBox="0 0 26 26" aria-hidden="true">
+          <circle cx="13" cy="13" r="6" fill="#14476B"></circle>
+        </svg>
+        <p class="key-txt"><b>Automatic</b>
+        <span>The sensor reports on its own. No person is involved.</span></p>
+      </div>
+
+      <div class="key-row">
+        <svg class="sym" viewBox="0 0 26 26" aria-hidden="true">
+          <circle cx="13" cy="13" r="6" fill="#A81D63"></circle>
+          <circle cx="13" cy="13" r="10.5" fill="none" stroke="#A81D63" stroke-width="1.4"></circle>
+        </svg>
+        <p class="key-txt"><b>By hand</b>
+        <span>A person reads the instrument and types the number in. It works today.</span></p>
+      </div>
+
+      <div class="key-row">
+        <svg class="sym" viewBox="0 0 26 26" aria-hidden="true">
+          <circle cx="13" cy="13" r="6" fill="none" stroke="#4E5D58"
+                  stroke-width="1.4" stroke-dasharray="3 2.5"></circle>
+        </svg>
+        <p class="key-txt"><b>Not built yet</b>
+        <span>The station cannot measure this. These tiles never show a number.</span></p>
+      </div>
+
+    </div>
+  </section>
+
+  <p class="count">Working now: <b>3 of 9</b> sensors, <b>13</b> measurements.
+  The other six are planned.</p>
+
+  <div class="grid">
+
+    <!-- LIVE -->
+    <article class="tile">
+      <div class="tile-top">
+        <h2 class="tile-name">Water quality logger</h2>
+        <span class="chip chip-live">Automatic</span>
+      </div>
+      <p class="sounding sounding-live">18.4<span class="unit">PSU</span></p>
+      <p class="stamp">Salinity, last dive</p>
+      <p class="chans">pH · conductivity · salinity · temperature · ORP · depth ·
+      fluorescence</p>
+    </article>
+
+    <!-- MANUAL -->
+    <article class="tile">
+      <div class="tile-top">
+        <h2 class="tile-name">Rain gauge</h2>
+        <span class="chip chip-manual">By hand</span>
+      </div>
+      <p class="sounding sounding-manual">8.9<span class="unit">mm</span></p>
+      <p class="stamp">Read at the gauge, entered by hand</p>
+      <p class="chans">Rainfall depth</p>
+    </article>
+
+    <article class="tile">
+      <div class="tile-top">
+        <h2 class="tile-name">Apera PC60</h2>
+        <span class="chip chip-manual">By hand</span>
+      </div>
+      <p class="sounding sounding-manual">7.82<span class="unit">pH</span></p>
+      <p class="stamp">Read on the meter, entered by hand</p>
+      <p class="chans">pH · ORP · conductivity · temperature</p>
+    </article>
+
+    <!-- PLANNED -->
+    <article class="tile tile-planned">
+      <div class="tile-top">
+        <h2 class="tile-name">GPS</h2>
+        <span class="chip chip-planned">Not built yet</span>
+      </div>
+      <p class="nodata">No reading</p>
+      <p class="would">Would record <b>position and time</b> against every measurement,
+      with no typing.</p>
+      <p class="chans">Latitude · longitude · time</p>
+    </article>
+
+    <article class="tile tile-planned">
+      <div class="tile-top">
+        <h2 class="tile-name">Soil probe</h2>
+        <span class="chip chip-planned">Not built yet</span>
+      </div>
+      <p class="nodata">No reading</p>
+      <p class="would">Would show whether the ground was <b>already wet</b> before the
+      rain, which changes how much reaches the creek.</p>
+      <p class="chans">pH · temperature · moisture · humidity · light · fertility</p>
+    </article>
+
+    <article class="tile tile-planned">
+      <div class="tile-top">
+        <h2 class="tile-name">Air probe</h2>
+        <span class="chip chip-planned">Not built yet</span>
+      </div>
+      <p class="nodata">No reading</p>
+      <p class="would">Would record the <b>wind and the sun</b>, which drive evaporation
+      and push water along the shore.</p>
+      <p class="chans">Particulates · wind speed · wind direction · temperature ·
+      humidity · UV</p>
+    </article>
+
+    <article class="tile tile-planned">
+      <div class="tile-top">
+        <h2 class="tile-name">Noise</h2>
+        <span class="chip chip-planned">Not built yet</span>
+      </div>
+      <p class="nodata">No reading</p>
+      <p class="would">Would measure <b>sound level</b>, so a class can study traffic and
+      construction as pollution.</p>
+      <p class="chans">Sound pressure level</p>
+    </article>
+
+    <article class="tile tile-planned">
+      <div class="tile-top">
+        <h2 class="tile-name">Creek current</h2>
+        <span class="chip chip-planned">Not built yet</span>
+      </div>
+      <p class="nodata">No reading</p>
+      <p class="would">Would measure <b>how fast the creek runs</b>, which shows the
+      runoff arriving instead of implying it.</p>
+      <p class="chans">Flow speed</p>
+    </article>
+
+    <article class="tile tile-planned">
+      <div class="tile-top">
+        <h2 class="tile-name">Buoy current</h2>
+        <span class="chip chip-planned">Not built yet</span>
+      </div>
+      <p class="nodata">No reading</p>
+      <p class="would">Would report <b>from open water</b> over a radio link, away from
+      the shore.</p>
+      <p class="chans">Current speed · direction</p>
+    </article>
+
+  </div>
+
+  <p class="note"><b>Why the empty tiles stay empty</b>
+  A tile shows a number only when the station measured it. A planned sensor shows no
+  number at all — not an example, not a placeholder. If you can see a value on this
+  screen, the station recorded it.</p>
+
+  <a class="back" href="/">Back to charts</a>
+
+</div>
+</body>
+</html>

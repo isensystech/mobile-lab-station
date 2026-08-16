@@ -131,12 +131,57 @@ by URL and key. One config field, one firmware.
 **Threshold breaches.** The logger already implements thresholds. The station does not
 implement its own in V1. It renders breaches that arrive with the dive.
 
-> **VERIFY BEFORE COSTING.** The 24-field CSV is
-> `ms,utc,submerged,poi,P_mbar,depth_m,bar30T_C,poetT_mC,ugs_uV,orp_uV,ec_nA,ec_uV,pH,EC_mScm,sal_PSU,ORP_Eh_mV,cyc_V,cyc_conc,cels_T_C` plus GPS columns. Breach state does
-> not appear in it. If breach must be recomputed from `deploy.thresh[]`, that means
-> re-implementing the firmware tile-state logic on the Pi and keeping two copies in sync
-> forever. Check this before treating breach rendering as cheap. If it is a recompute,
-> consider appending a breach column to the CSV instead — **append at end only.**
+### The CSV has 25 columns, not 24
+
+**CORRECTED 2026-08-15.** An earlier version of this section called it a 24-field CSV. It
+listed 19 names and said "plus GPS columns". The firmware writes **25**: 19 science
+columns, then 6 GPS columns.
+
+The authority is `firmware/src/main.cpp:258`, quoted here in full:
+
+```
+ms,utc,submerged,poi,P_mbar,depth_m,bar30T_C,poetT_mC,ugs_uV,orp_uV,ec_nA,ec_uV,pH,EC_mScm,sal_PSU,ORP_Eh_mV,cyc_V,cyc_conc,cels_T_C,gps_lat,gps_lon,gps_fix,gps_sats,gps_age_s,gps_src
+```
+
+| Group | Count | Names |
+|---|---|---|
+| Science | 19 | `ms` … `cels_T_C` |
+| GPS | 6 | `gps_lat`, `gps_lon`, `gps_fix`, `gps_sats`, `gps_age_s`, `gps_src` |
+| **Total** | **25** | |
+
+`gps_src` is easy to miss when counting, and missing it is how 25 became 24.
+
+**The bridge parses by position and fails loudly.** It compares the header against the 25
+names above. A file with any other count, or any renamed column, is refused with HTTP 400,
+and **nothing is ingested**. A firmware change breaks visibly on the first upload rather
+than silently shifting every value one column to the left.
+
+> **OPEN RISK.** The guard checks the count and the names. It cannot check the ORDER of
+> two columns that keep the same name set and the same count. A firmware that swapped, for
+> example, `bar30T_C` and `poetT_mC` would pass the guard, and the station would silently
+> store two metrics under each other's names. See §16.
+
+### Dive idempotency **[LOCKED]**
+
+A dive file never changes after it closes. `DiveSync-To-Do.md` states the contract, and
+the station copies it, so one firmware works against the cloud and against the station.
+
+- The key is **`(device_id, filename)`**.
+- A second POST of the same dive returns **409** with `rows_ingested: 0`.
+- The device treats 409 as "already synced, mark done".
+
+A logger that retries after a dropped connection therefore cannot double a dive.
+
+> **LIMIT.** The key is the NAME, not a checksum. If a logger ever rewrote `dive0007.csv`
+> with different content, the station would answer 409 and keep the first copy. That is
+> correct for immutable files and wrong for anything else. Nothing compares content. See
+> §16.
+
+> **VERIFY BEFORE COSTING.** Breach state does not appear in the 25 columns. If breach must
+> be recomputed from `deploy.thresh[]`, that means re-implementing the firmware tile-state
+> logic on the Pi and keeping two copies in sync forever. Check this before treating breach
+> rendering as cheap. If it is a recompute, consider appending a breach column to the CSV
+> instead — **append at end only.**
 
 ---
 
@@ -261,6 +306,19 @@ When automation lands, manual entry becomes the **ground-truth lane**. Plot both
 "your reading against the sensor's reading." Instrument agreement, drift, and operator
 error all become visible. It is free once both paths write to the same table.
 
+### The ground-truth lane arrived with the dive bridge
+
+Dive metrics are stored as `sensor='water'` with `source='wql'`. A student's manual
+reading is stored as `sensor='water'` with `source='manual'`.
+
+The two therefore share a join key. A manual `water/ph` and a logger `water/ph` compare
+directly, and the `sources` table keeps them apart on the screen: `wql` and `manual` are
+both real and both draw solid, but they stay separate series.
+
+**This cost nothing to build.** The lane described above is not a future feature. It is
+what the wide `sensor / metric / value / unit` shape gives once two paths write the same
+metric. A teacher can already put a student's pH against the logger's pH on one axis.
+
 ---
 
 ## 5. Source labelling **[LOCKED]**
@@ -271,6 +329,11 @@ Synthetic and reconstructed data must be structurally and visually unmistakable.
 - The chart renders it dashed or tinted.
 - A persistent "simulated" badge stays on screen. Not a tooltip.
 - Reconstructed rows store what they were derived from, so provenance survives.
+
+**Where the last rule lives.** `readings.provenance`, a `jsonb` column added by migration
+0010. A generator writes its seed and its parameters there, so a person can rebuild the
+exact series from any one row. See §4, "Provenance". A row with a synthetic source and an
+empty `provenance` is a defect.
 
 **Why this is a hard rule.** The failure mode is a screenshot where synthetic and real
 data look identical. Six months later a teacher analyses fake soil pH and believes it is
@@ -565,7 +628,24 @@ two static markdown articles · CSV export · seeded synthetic test fixture.
 
 **OUT:** Modbus drivers · LoRa buoy · noise · creek · Apera reverse engineering ·
 cloud offload · NOAA lookup · **scatter plot** · roster management ·
-threshold configuration UI · Jupyter · Kiwix · deep templated tutorials.
+**teacher review queue** · threshold configuration UI · Jupyter · Kiwix ·
+deep templated tutorials.
+
+> **CORRECTION, 2026-08-15. The teacher review queue moves to OUT.** §4 promises one:
+> "Give the teacher a review queue for implausible readings instead of a locked input."
+> It is not built, so this section must say so rather than leave the promise hanging.
+>
+> What IS built: an implausible value saves, carries `quality_flag='implausible'` on both
+> the row and the batch, and shows a FLAGGED tag on the entry screen. What is NOT built:
+> anything that collects those flags. Nothing lists them, filters them, or tells a teacher
+> they exist. A person must already be looking at the right screen.
+>
+> **A flag nobody reviews does nothing.** The column is honest and the seam is cheap, but
+> the promise in §4 is not kept until something gathers the flags.
+>
+> **The seam for V2 is `/api/flagged`**, one endpoint returning every reading with
+> `quality_flag='implausible'` and its observation. The data is already there. The work is
+> the endpoint and a screen, not a schema change.
 
 > **CORRECTION, 2026-08-15.** An earlier version of this section listed "scatter and lag
 > correlation" as OUT. That contradicted §7, which makes the lag slider required, not
@@ -609,6 +689,19 @@ Mitigation: nightly pg_dump off the card, see §16.
     one.** The RTC battery is not fitted, so a power cut sets the clock to 1970 and every
     later reading is silently wrong. This rule discards the timestamp. It does not repair
     the clock. See §9.
+14. **Refresh the rollup after a backdated write.**
+
+    > Any write path that inserts or modifies data outside the real-time
+    > aggregation window must refresh the affected rollup ranges before
+    > returning. The chart reads rollups. A write that skips the refresh is
+    > invisible or wrong on screen while appearing to succeed. Found three
+    > times: corrections, deletions, and backdated dive ingest. Every dive is
+    > backdated - the logger records under water and uploads on surfacing.
+
+    Only the owner of a continuous aggregate may refresh it, so migration 0012 gives the
+    application role that ownership. A `SECURITY DEFINER` wrapper cannot work, because
+    `refresh_continuous_aggregate` controls its own transactions and PostgreSQL forbids
+    that inside a `SECURITY DEFINER` routine. See §16 for what that ownership costs.
 
 ---
 
@@ -618,7 +711,7 @@ Locked section. An open blind spot is never dropped at purge.
 
 | Gate / claim | This proves | This does **not** prove | Status |
 |---|---|---|---|
-| Threshold breach rendering | breaches arrive with the dive | that breach state is **in** the CSV. It is not, in the 24 columns known. May require recompute of firmware tile-state logic on the Pi. | **OPEN** — verify before costing, §3 |
+| Threshold breach rendering | breaches arrive with the dive | that breach state is **in** the CSV. It is not, in the 25 columns the firmware writes. May require recompute of firmware tile-state logic on the Pi. | **OPEN** — verify before costing, §3 |
 | MQTT spine absorbs future drivers | manual entry and Modbus share a record shape | that Modbus timing, error, and retry semantics fit the same driver contract. No Modbus driver has been written. | **OPEN** — closes when driver #1 lands |
 | `readings` absorbs public data | schema needs no migration for a NOAA row | that fetch, cache, and offline behaviour are solved. They are not designed. | **OPEN** — closes in V2 |
 | `observation_id` grouping | manual batches are modelled correctly | that the free-text observer survives contact with a classroom. It may collide, be misspelled, or be left blank. | **OPEN** — closes with V2 roster |
@@ -631,7 +724,14 @@ Locked section. An open blind spot is never dropped at purge.
 | `data_checksums` off | nothing yet | that PostgreSQL can detect a corrupt page. Debian leaves checksums off by default, so corruption stays silent. This matters more while hard rule 9 runs under its microSD exception, because a worn card corrupts quietly. | **OPEN** — closes with `pg_checksums --enable` on a stopped cluster |
 | MQTT durability | a stopped writer loses nothing. The broker holds QoS 1 messages for a persistent session and delivers every one at reconnect. | that a power cut loses nothing. Mosquitto writes its queue to disk every 60 seconds, so a power cut can lose up to a minute of queued messages. The test stopped the writer, not the broker. | **OPEN** — closes with a shorter autosave interval, or with a UPS HAT |
 | Continuous aggregate correctness | a wide query reads a rollup and not a raw scan | that the rollup matches the raw table after a deletion. Deleting a raw row does **not** remove its aggregate bucket. Measured on 2026-08-15: 52 hour buckets survived with no raw row behind them, and the chart would have drawn deleted data. The refresh policy repairs this inside its window only. A correction older than the window stays wrong indefinitely. | **OPEN** — needs a correction procedure in the runbook, see `db/README.md` |
-| Local API exposure | the kiosk browser and a teacher laptop both reach the API | that it is safe on a shared network. The API binds `0.0.0.0` with no authentication, and `/docs` is open. It is read only today, which limits the damage but does not remove the exposure. | **OPEN** — dev cycle only, must close before any classroom network |
+| Local API and bridge exposure | the kiosk browser, a teacher laptop, and a WQL logger all reach the station | that it is safe on a shared network. The API binds `0.0.0.0` with no authentication and `/docs` is open, and the bridge does the same on port 8081. **CORRECTED 2026-08-15: the API is NOT read only.** It was when that claim was written. Since the entry form landed, anybody on the network can save, correct, or delete a reading, and anybody can upload a dive. The README carried the stale "read only" claim and has been fixed. | **OPEN** — dev cycle only, must close before any classroom network |
+| CSV column reorder | a wrong column COUNT is refused, and a RENAMED column is refused | that a reorder is caught. The guard checks the count and the name set. Two columns of the same type swapped, with 25 columns kept, passes the guard, and the station silently stores each metric under the other's name. | **OPEN** — needs a checksum of the header, or a firmware version field, §3 |
+| Dive idempotency | a repeat upload of the same file answers 409 and writes nothing | that an EDITED file is caught. The key is `(device_id, filename)`, not a checksum. A logger that rewrote `dive0007.csv` with new content would be turned away and the first copy kept. Correct for immutable files, wrong for anything else. | **OPEN** — closes with a content hash on the manifest, §3 |
+| Dive completeness | rejected rows are counted, logged, and stored on the manifest | that a dive with gaps reads as a dive with gaps. A dive that lost samples to a bad clock ingests as a whole dive. `rows_rejected` records it on the manifest, but no chart marks the gap, and a reader sees an unbroken profile. | **OPEN** — needs a gap marker on the chart |
+| Teacher review queue | a flag is written on the row and the batch, and the entry screen shows it | that anybody reviews it. Nothing collects flagged rows. There is no list, no filter, and no alert. A flag nobody reviews does nothing. §4 promises this queue and §14 now records it as OUT for V1. | **OPEN** — `/api/flagged` is the seam, §14 |
+| Deletion is not auditable | a removed reading leaves the raw table and its rollup bucket | that anybody can tell what was removed. Nothing records who deleted a row, when, or what it held. A student can quietly remove a reading that did not suit them. | **OPEN** — needs an audit table, the logger's `callog.csv` is the pattern, §6 |
+| Aggregate ownership | the application role can refresh a rollup, which hard rule 14 requires | that the role is least privilege. Migration 0012 makes `mobilelab` the OWNER of both continuous aggregates, so the role can also DROP them. A `SECURITY DEFINER` wrapper cannot replace this, because `refresh_continuous_aggregate` controls its own transactions. | **OPEN** — accepted cost, revisit if a stricter role model is needed |
+| Bridge parse path | the parser reads the documented 25 column FORMAT, proven by a generated file | that it reads a REAL dive. **No WQL logger has ever POSTed to this station.** Every gate used `mobilelab.divefixture`. A real file may carry meta lines, blank channels, or edge cases the generator never produces. | **OPEN** — closes on the first real upload |
 
 ---
 
