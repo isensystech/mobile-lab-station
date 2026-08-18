@@ -32,6 +32,32 @@
   </nav>
   <span class="bar-spacer"></span>
   <span id="who-now" class="who-now"></span>
+  <!--
+    The GPS indicator. It reports the FIX, never the cable. See static/gps.js.
+
+    It matters most on this page. A person about to type a reading needs to know
+    whether the station knows where it is.
+  -->
+  <button type="button" id="gps-open" class="bar-gps" data-gps-state="grey"
+          aria-label="GPS status: not known yet. Press for detail.">
+    <svg class="gps-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <g class="gps-sat" transform="rotate(40 12 12)">
+        <rect x="0.4" y="9.7" width="7.8" height="4.6" rx="0.8"/>
+        <rect x="15.8" y="9.7" width="7.8" height="4.6" rx="0.8"/>
+        <path d="M8.2 12h1.3M14.5 12h1.3"/>
+        <rect x="9.5" y="9.4" width="5" height="5.2" rx="1.5"/>
+        <path class="gps-dish" d="M9 17.6a3 3 0 0 1 6 0z"/>
+        <path d="M12 14.6v1.4"/>
+      </g>
+      <g class="gps-waves" transform="rotate(40 12 12)">
+        <path d="M8.6 19.8a4.2 4.2 0 0 0 6.8 0"/>
+        <path d="M6.5 21.6a6.8 6.8 0 0 0 11 0"/>
+      </g>
+      <path class="gps-slash" d="M3.4 20.6 20.6 3.4"/>
+      <text class="gps-quest" x="18.8" y="8.6" text-anchor="middle">?</text>
+    </svg>
+    <span class="gps-label" id="gps-label">GPS ?</span>
+  </button>
 </header>
 
 <div id="clock-alarm" class="alarm alarm-hidden" role="alert">
@@ -173,8 +199,31 @@
   </div>
 </div>
 
+<div id="gps-panel" class="modal modal-hidden" role="dialog" aria-modal="true"
+     aria-labelledby="gps-title">
+  <div class="modal-card gps-card">
+    <h2 id="gps-title">GPS status</h2>
+    <table>
+      <tbody id="gps-rows"></tbody>
+    </table>
+    <p id="gps-simulated" class="gps-simulated gps-hidden"></p>
+    <p class="muted">
+      GPS OK needs a 3D fix on four satellites. A 3D fix finds four unknown
+      values, so it needs four satellites.
+    </p>
+    <p class="muted">
+      Indoors the receiver finds satellites. It does not get a fix. Then the
+      status shows NO FIX. Carry the station outside to get a fix.
+    </p>
+    <div class="modal-actions">
+      <button type="button" id="gps-close" class="btn">Close</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="/static/entry.js"></script>
 <script src="/static/about.js"></script>
+<script src="/static/gps.js"></script>
 <script src="/static/fit.js"></script>
 </body>
 </html>

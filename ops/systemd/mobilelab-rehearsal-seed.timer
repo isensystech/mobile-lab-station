@@ -1,0 +1,13 @@
+[Unit]
+Description=Keep the rehearsal chart populated. Synthetic data only.
+Documentation=file://__REPO_ROOT__/ops/README.md
+
+[Timer]
+OnBootSec=3min
+OnCalendar=hourly
+Persistent=true
+AccuracySec=1min
+Unit=mobilelab-rehearsal-seed.service
+
+[Install]
+WantedBy=timers.target

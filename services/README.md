@@ -217,3 +217,30 @@ answer. Without that the chart keeps drawing the old value. See `db/README.md`.
    other value, and the writer logs it.
 5. The manual entry form is a driver. It is not a special case.
 6. A generator must set `provenance`. A measurement leaves it empty.
+
+
+## `mobilelab.gpsrelay` and `mobilelab.gps`
+
+`gpsrelay` owns the GPS serial port and serves it to gpsd over `tcp://127.0.0.1:2948`.
+It exists because gpsd's parity hunt stops the PL2303 dongle dead. See its module
+docstring for the measurements, and `ops/README.md` for the chain.
+
+`gps` is a driver like any other. It reads gpsd, normalizes, and publishes to
+`station/<id>/gps/<metric>`. It never writes to `readings`; the writer stays the only
+path in. It also publishes a retained status to `mobilelab/gps/status`, which the API
+ages and serves at `/api/gps` for the screen indicator.
+
+Two guards sit in it, and both are structural rather than advisory:
+
+- **Fix quality, not connectivity.** Green needs mode 3 and four satellites used. Four
+  is the arithmetic floor for a 3D fix, which solves x, y, z, and the receiver clock
+  bias. Below that the receiver is not solving, and it will still print a latitude.
+- **A pseudo-terminal cannot carry a real source.** `gpsfake` replays recorded NMEA
+  through `/dev/pts`. The driver reads the device path gpsd reports, and refuses to
+  publish anything from a pty under the source `gps`. It uses `gps_simulated`, which
+  has `is_real` false and draws dashed. Hard rule 3 is enforced by the device path, not
+  by whoever typed the command.
+
+Hard rule 13 applies here too. GPS is a better clock than the RTC, and it is still not
+exempt: every record goes through `check_clock` before it is published, and a failure is
+logged with `reason=implausible_clock` and counted.

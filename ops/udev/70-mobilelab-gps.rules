@@ -1,0 +1,1 @@
+ACTION=="add|change", SUBSYSTEM=="tty", ATTRS{idVendor}=="067b", ATTRS{idProduct}=="2303", ENV{ID_PATH}=="platform-xhci-hcd.1-usb-0:2:1.0", SYMLINK+="mobilelab-gps", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{SYSTEMD_WANTS}="gpsd.service"

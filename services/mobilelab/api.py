@@ -55,6 +55,13 @@ from .series import (
 log = logging.getLogger("mobilelab.api")
 
 WRITER_STALE_SECONDS = 60.0
+
+# The GPS driver reports every 3 seconds. Six missed reports is silence.
+#
+# This threshold is what makes a retained status safe. The broker keeps the last
+# GPS status forever, so a driver that died leaves a cheerful message behind. Age
+# it, and a dead driver reads RED instead of a frozen AMBER.
+GPS_STALE_SECONDS = 20.0
 LIVE_QUEUE_SIZE = 200
 MAX_SPAN = timedelta(days=400)
 
@@ -225,6 +232,7 @@ class State:
         self.mqtt: mqtt.Client | None = None
         self.broker_connected = False
         self.writer_status: dict | None = None
+        self.gps_status: dict | None = None
 
 
 state = State()
@@ -237,6 +245,7 @@ def _on_connect(client, userdata, flags, reason_code, properties=None) -> None:
     state.broker_connected = True
     client.subscribe(topics.READINGS_WILDCARD, qos=1)
     client.subscribe(topics.WRITER_STATUS, qos=1)
+    client.subscribe(topics.GPS_STATUS, qos=1)
     log.info("the API connected to the broker and subscribed")
 
 
@@ -253,6 +262,13 @@ def _on_message(client, userdata, message: mqtt.MQTTMessage) -> None:
             state.writer_status = json.loads(raw)
         except json.JSONDecodeError:
             log.warning("the writer status was not JSON")
+        return
+
+    if message.topic == topics.GPS_STATUS:
+        try:
+            state.gps_status = json.loads(raw)
+        except json.JSONDecodeError:
+            log.warning("the GPS status was not JSON")
         return
 
     try:
@@ -844,6 +860,120 @@ def list_metrics() -> list[dict]:
 def clock() -> dict:
     """Is the station clock trustworthy? Hard rule 13."""
     return _clock_state()
+
+
+def _ntp_synchronized() -> bool | None:
+    """Ask systemd whether the clock is synchronized. Read only.
+
+    This NEVER changes a time setting. SSH and a correct clock are both
+    recovery-critical, so this asks a question and touches nothing.
+    """
+    try:
+        done = subprocess.run(
+            ["timedatectl", "show", "-p", "NTPSynchronized", "--value"],
+            capture_output=True,
+            timeout=5,
+            text=True,
+        )
+    except Exception as exc:
+        log.warning("could not read the clock synchronization state: %s", exc)
+        return None
+    if done.returncode != 0:
+        return None
+    return done.stdout.strip() == "yes"
+
+
+def _clock_source(gps: dict | None) -> dict:
+    """Name the thing the system clock is following.
+
+    The detail panel shows this beside the fix. A person looking at a 1970
+    timestamp needs to know which clock produced it, and the answer is not
+    always the one they assume.
+    """
+    synchronized = _ntp_synchronized()
+    has_gps_time = bool(gps and gps.get("state") == "green" and gps.get("gps_time"))
+
+    if synchronized:
+        source = "Network time"
+        note = "A time server set the clock."
+    elif has_gps_time:
+        source = "GPS time"
+        note = "The receiver has a fix, so it supplies the time."
+    else:
+        source = "Onboard clock"
+        note = "The station uses its own clock. The RTC battery holds it across a power cut."
+
+    return {
+        "source": source,
+        "note": note,
+        "ntp_synchronized": synchronized,
+        "gps_time_available": has_gps_time,
+        "system_time": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "gps_time": gps.get("gps_time") if gps else None,
+    }
+
+
+@app.get("/api/gps")
+def gps_state() -> dict:
+    """Where the station is, and how much to trust that answer.
+
+    THE STATE IS THE FIX, NOT THE CONNECTION. A receiver that is talking and has
+    no fix is AMBER. That is the ordinary indoor case, and it is the one this
+    endpoint exists to report honestly.
+
+    The API adds one thing the driver cannot: age. The status is retained on the
+    broker, so the driver's last words outlive the driver. A status older than
+    GPS_STALE_SECONDS is RED whatever it says about itself.
+    """
+    status = state.gps_status
+
+    if status is None:
+        return {
+            "state": "red",
+            "label": "NO GPS",
+            "detail": "The GPS driver has not reported. Check mobilelab-gps.service.",
+            "driver": {"running": False, "reported_at": None, "age_seconds": None, "stale": True},
+            "fix": {"mode": None, "mode_text": "Unknown", "satellites_used": None,
+                    "satellites_seen": None, "hdop": None},
+            "position": {"lat": None, "lon": None, "alt_m": None},
+            "last_fix_at": None,
+            "device": None,
+            "simulated": False,
+            "threshold": {"min_satellites_used": 4, "requires_3d": True},
+            "clock": _clock_source(None),
+        }
+
+    answer = dict(status)
+
+    age = None
+    reported = answer.get("reported_at")
+    if reported:
+        try:
+            stamp = datetime.fromisoformat(str(reported).replace("Z", "+00:00"))
+            age = (datetime.now(UTC) - stamp).total_seconds()
+        except ValueError:
+            age = None
+
+    stale = age is None or age > GPS_STALE_SECONDS
+    running = bool(answer.get("driver_running", True)) and not stale
+
+    if stale:
+        answer["state"] = "red"
+        answer["label"] = "NO GPS"
+        answer["detail"] = (
+            "The GPS driver stopped reporting."
+            if age is None
+            else f"The GPS driver last reported {age:.0f} seconds ago."
+        )
+
+    answer["driver"] = {
+        "running": running,
+        "reported_at": reported,
+        "age_seconds": round(age, 1) if age is not None else None,
+        "stale": stale,
+    }
+    answer["clock"] = _clock_source(status)
+    return answer
 
 
 @app.post("/api/observations")

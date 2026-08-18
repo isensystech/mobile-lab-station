@@ -1,0 +1,31 @@
+[Unit]
+Description=Mobile Lab Station GPS driver
+Documentation=file://__REPO_ROOT__/services/README.md
+After=network-online.target mosquitto.service gpsd.service
+Wants=mosquitto.service gpsd.service
+
+[Service]
+Type=simple
+User=mobilelab
+Group=mobilelab
+WorkingDirectory=__REPO_ROOT__/services
+EnvironmentFile=__REPO_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__REPO_ROOT__/.venv/bin/python -m mobilelab.gps
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mobilelab-gps
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

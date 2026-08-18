@@ -24,6 +24,11 @@ and Scott configures it in person at the console. No script reads or writes `wla
 | `verify-kiosk.sh` | Runs the kiosk gates. Three of them need Scott at the screen. |
 | `eyewitness-kiosk.sh` | The four tasks Scott does by hand: restart, escape, power pull, buttons. |
 | `button-probe.sh` | Watches every input while somebody presses the screen buttons. |
+| `install-gps.sh` | Installs gpsd, the udev rule, the serial relay, and the GPS driver. Power cycles the dongle first. |
+| `verify-gps.sh` | Runs the nine GPS and RTC gates. Gate 8 needs Scott at the plug. |
+| `eyewitness-gps.sh` | What Scott should see indoors, what changes outside, and six things that mean stop. No sudo. |
+| `rtc-powercut.sh` | Stages and scores the RTC power cut test. Run it with `before`, cut the power, then `after`. |
+| `gps-fixtures/make-nmea.py` | Writes the two NMEA logs the gates replay through `gpsfake`. |
 | `eyewitness.sh` | Shows data going in. No arguments, no sudo. |
 | `eyewitness-api.sh` | Shows data coming back out through the API. No arguments, no sudo. |
 | `install-mosquitto.sh` | Installs Mosquitto from Debian. Installs the station configuration. Enables the unit. |
@@ -202,3 +207,169 @@ Press each screen button while it counts down.
   tape or a cover, and not a software guard.
 
 Do not write a software guard for a button the Pi cannot see.
+
+
+## GPS
+
+The receiver is read by three units, in this order:
+
+```
+/dev/mobilelab-gps ──▶ mobilelab-gpsrelay ──▶ gpsd ──▶ mobilelab-gps ──▶ MQTT ──▶ writer
+   udev symlink          owns the port        tcp/2948   the driver      station/lab01/gps/*
+```
+
+**gpsd is NOT given the serial port, and that is deliberate.** gpsd identifies an
+unknown device by hunting through speed, parity, and stop-bit combinations. On this
+PL2303 dongle a single `8N1 -> 8O1 -> 8N1` toggle stops the device dead until the USB
+port is power cycled. `-s` pins the speed and `-b` stops gpsd writing to the receiver,
+and neither one stops the parity hunt. The relay holds the port, sets 8N1 once, and
+serves the bytes over loopback TCP, where there is no parity to hunt. See
+`services/mobilelab/gpsrelay.py` for the measurements.
+
+**The dongle itself is faulty and should be replaced.** It is clean for roughly twenty
+seconds after a USB power cycle and then decays to unreadable, with its byte rate
+unchanged and its effective baud drifting about six percent high. Run `verify-gps.sh`
+and read the hardware note at the end for the numbers. A CP2102 or an FT232R is the
+fix. Keep the relay either way.
+
+**The indicator reports the FIX, never the connection.** Green needs a 3D fix on four
+or more satellites, because a 3D fix solves four unknowns and needs four satellites to
+do it. This receiver has claimed a 3D fix on three satellites, with a plausible-looking
+position, more than once. The badge stayed amber every time.
+
+### The bridge soak
+
+`gps-soak.sh` measures the bridge decay. It repairs nothing and it changes no
+application code. It runs ONCE, on the next boot, with nothing typed.
+
+```
+sudo ops/install-gps-soak.sh      arm it. It refuses while weather-collector runs.
+sudo ops/gps-soak.sh --smoke      rehearse it. Two buckets. It does not disarm.
+ops/gps-soak-report.sh            print the report. No sudo.
+ops/gps-soak-report.sh --watch    follow it live over ssh.
+sudo ops/install-gps-soak.sh disarm   cancel it.
+ops/eyewitness-gps-soak.sh        what Scott does, in order.
+```
+
+It records 25 buckets of one minute. Each bucket spends 40 s at 9600, then 9.6 s
+at 10000, then 9.6 s at 10400. The three speeds are the drift measurement. A
+minute where 10000 or 10400 carries more valid sentences than 9600 is a minute
+where the transmit clock ran fast.
+
+**It disarms BEFORE it measures, not after.** A power cut in minute 12 must not
+leave the soak armed for the next boot. Two guards hold it: the marker file
+`/var/lib/mobilelab/gps-soak.done`, and `ConditionPathExists=!` on the unit.
+Either one alone is enough.
+
+**It stops `mobilelab-gpsrelay` to take the port, and it gives the port back.**
+Stopped, never disabled. The wrapper restores the relay from an EXIT trap, and
+the unit restores it again from `ExecStopPost`, so a crash or a timeout still
+returns the port. The report carries the proof under RESTORE PROOF.
+
+**The GPS badge reads red for the whole 25 minutes. That is correct.** The relay
+is stopped, so the driver has nothing to report. The badge returns to amber or
+green when the relay comes back.
+
+**The temperature column is the board, not the dongle.** No sensor exists on the
+dongle. The report says so and refuses to call one run a correlation.
+
+### Standing note: `systemctl mask` fails silently on a unit with a real file
+
+Masking creates a symlink from `/etc/systemd/system/<unit>` to `/dev/null`. If a
+REAL unit file already sits at that path, the symlink cannot be created and the
+mask does not happen.
+
+Measured on this station, 2026-08-17:
+
+```
+$ sudo systemctl mask weather-collector.service
+Failed to mask unit: File '/etc/systemd/system/weather-collector.service' already exists
+```
+
+The unit stayed startable. The failure prints one line and returns non-zero, and
+it is easy to read as noise in the middle of a longer script.
+
+**Check the result, never the command.** After a mask, confirm it took:
+
+```
+systemctl is-enabled weather-collector.service     it must say masked
+```
+
+Units shipped in `/lib/systemd/system` mask normally. Units installed by hand
+into `/etc/systemd/system`, which is where `weather-collector` lives, do not.
+To stop one of those at boot you must disable whatever pulls it up, or move the
+unit file aside. Both are larger changes than a mask, and neither is reversible
+by `unmask`.
+
+### ACTIVE EXCEPTION: the GPS bridge runs at a non-standard baud
+
+**This is a workaround for a broken part. It is not a design. It must be removed.**
+
+The Prolific PL2303 bridge transmits about 8.5 percent fast. Read at the correct
+9600 the station decodes nothing. Read at 10416 the same bytes decode cleanly.
+
+The rate is CONFIGURATION, never code:
+
+```
+MOBILELAB_GPS_BAUD=9600     the correct value, and what a sound bridge needs
+MOBILELAB_GPS_BAUD=10416    the workaround for THIS faulty dongle
+```
+
+It lives in `.env` and the relay unit reads it with `EnvironmentFile=`. The relay
+logs a loud warning at every start while the value is not 9600, so the workaround
+cannot quietly become permanent.
+
+**To remove it when the CP2102 or FT232R arrives:**
+
+```
+set MOBILELAB_GPS_BAUD=9600 in .env
+sudo systemctl restart mobilelab-gpsrelay.service
+```
+
+That is the whole removal. No code changes. The warning stops by itself.
+
+**THE RECEIVER IS SILENT AS OF 2026-08-18.** It delivers zero bytes at 9600,
+10000, 10200, 10416 and 10600, before and after a USB unbind and rebind. That is
+a separate and worse fault than the clock drift. The workaround is configured and
+proven at the configuration level, and it is UNPROVEN on live data. No green
+badge has ever been observed on this station.
+
+Tracked as an ACTIVE EXCEPTION in `docs/MobileLab-Arch.md` section 16.
+
+### Keeping the rehearsal chart populated
+
+Jessica rehearses against this rig, so the chart must never be empty.
+
+`ops/seed-rehearsal.sh` writes the three synthetic series ending at the present
+hour. Its data therefore goes stale as the clock moves. A timer reseeds it.
+
+```
+sudo ops/install-rehearsal-timer.sh          install and start it
+sudo ops/install-rehearsal-timer.sh remove   take it away again
+systemctl list-timers mobilelab-rehearsal-seed.timer
+```
+
+**A TIMER, NOT A SERVICE, AND THAT IS DELIBERATE.**
+`mobilelab-fixture.service` has no `[Install]` section on purpose, because a
+fixture must never start at boot. A long running generator that keeps writing
+rows looks exactly like a live sensor, which is the defect hard rule 3 exists to
+prevent. A timer runs, finishes, and shows up in `systemctl list-timers`, so
+anybody can see it and stop it.
+
+The seed script DELETES the synthetic rows before writing them again, so
+repeating it is safe and never stacks duplicates. It refreshes both rollups every
+run, which hard rule 14 requires because every row it writes is backdated.
+
+It removes only `synthetic` and `public_synthetic`. A manual reading is never
+touched.
+
+**The data stays synthetic.** Every row is `is_real: false` and draws dashed or
+stepped, and the SIMULATED badge stays on the chart. The timer changes when the
+data is written, never what it claims to be.
+
+Correlations measured 2026-08-18, over 336 hourly points:
+
+| Series | r | Reading |
+|---|---|---|
+| Rain Gauge, `synthetic` | **-0.862** at a 6 hour lag | strong, the local gauge drives salinity |
+| NOAA cell average, `public_synthetic` | **+0.188** at an 8 hour lag | weak, a grid cell cannot see local convection |

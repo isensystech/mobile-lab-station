@@ -1,0 +1,13 @@
+[Unit]
+Description=Mobile Lab Station rehearsal fixture reseed, one run
+Documentation=file://__REPO_ROOT__/ops/seed-rehearsal.sh
+After=network-online.target postgresql.service mosquitto.service mobilelab-writer.service
+Wants=postgresql.service mosquitto.service
+
+[Service]
+Type=oneshot
+ExecStart=__REPO_ROOT__/ops/seed-rehearsal.sh
+TimeoutStartSec=600
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mobilelab-rehearsal-seed

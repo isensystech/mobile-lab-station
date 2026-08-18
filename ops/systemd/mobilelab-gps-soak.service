@@ -1,0 +1,20 @@
+[Unit]
+Description=Mobile Lab Station GPS bridge soak. One shot, diagnostic only.
+Documentation=file://__REPO_ROOT__/ops/gps-soak.sh
+ConditionPathExists=!/var/lib/mobilelab/gps-soak.done
+After=mobilelab-gpsrelay.service local-fs.target
+After=dev-mobilelab\x2dgps.device
+Wants=dev-mobilelab\x2dgps.device
+
+[Service]
+Type=oneshot
+ExecStart=__REPO_ROOT__/ops/gps-soak.sh
+ExecStopPost=__REPO_ROOT__/ops/gps-soak.sh --restore-only
+TimeoutStartSec=1900
+RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mobilelab-gps-soak
+
+[Install]
+WantedBy=multi-user.target

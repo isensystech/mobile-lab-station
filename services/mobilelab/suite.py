@@ -66,8 +66,12 @@ SUITE: tuple[Sensor, ...] = (
     ),
     Sensor(
         number=2, name="GPS", parameters="Latitude, longitude, time",
-        interface="USB or UART, through gpsd", tier="V1", status=PLANNED,
-        note="The gpsd driver is not built. The station takes position from the dive file today.",
+        interface="USB dongle at 9600 baud, through gpsd", tier="V1", status=LIVE,
+        note=(
+            "The driver publishes position only from a 3D fix on four satellites. "
+            "Indoors there is no fix, so this tile stays empty. That is correct."
+        ),
+        sensor="gps", metric="latitude", sources=("gps",),
     ),
     Sensor(
         number=3, name="Apera PC60", parameters="ORP, pH, EC, temperature",

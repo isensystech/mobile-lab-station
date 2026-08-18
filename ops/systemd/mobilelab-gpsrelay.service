@@ -1,0 +1,33 @@
+[Unit]
+Description=Mobile Lab Station GPS serial relay
+Documentation=file://__REPO_ROOT__/services/mobilelab/gpsrelay.py
+After=dev-mobilelab\x2dgps.device
+Wants=dev-mobilelab\x2dgps.device
+Before=gpsd.service
+
+[Service]
+Type=simple
+User=mobilelab
+Group=mobilelab
+SupplementaryGroups=dialout
+WorkingDirectory=__REPO_ROOT__/services
+EnvironmentFile=-__REPO_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__REPO_ROOT__/.venv/bin/python -m mobilelab.gpsrelay
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mobilelab-gpsrelay
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_UNIX
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

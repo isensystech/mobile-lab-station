@@ -156,6 +156,7 @@ body {
  * Only the colour differs, because only the meaning differs.
  */
 .sim-badge,
+.bar-gps,
 .bar-power {
   min-height: 36px;
   padding: 0 0.85rem;
@@ -180,12 +181,219 @@ body {
 .sim-badge::before { content: "\25CF"; font-size: 0.7rem; }
 .sim-hidden { display: none; }
 
+/*
+ * The power control is the IEC 5009 power symbol in a circle, the same 36px
+ * circle as the GPS badge beside it.
+ *
+ * It said "Power" in words until Scott asked for the symbol. The bar has to
+ * carry a wordmark, a product name, four tabs, a simulated badge, and two
+ * controls across 1024px, and the two controls are the ones that can afford to
+ * lose their words: the power symbol is on every appliance a student owns, and
+ * pressing it opens a dialog that asks the question in full sentences before
+ * anything happens.
+ *
+ * The word is moved off screen, not deleted, so a screen reader still says
+ * "Power. Stop or restart the station."
+ */
 .bar-power {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  border-radius: 50%;
+  justify-content: center;
   background: #3a2020;
   color: #f2d6d6;
   border-color: #8a4a4a;
 }
 .bar-power:hover { background: #4c2a2a; }
+
+.power-icon {
+  width: 19px;
+  height: 19px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.power-label,
+.bar-gps .gps-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/*
+ * The GPS indicator. Beside the power control, on every page.
+ *
+ * The badge is a 36px circle, the same height as the power control beside it.
+ *
+ * IT WAS A PILL WITH WORDS IN IT. It was 104px wide, and the bar has four
+ * navigation tabs, a simulated badge, and a power control to fit as well. Scott
+ * called it at the screen: the words cost horizontal space the bar does not
+ * have, and the detail panel already says everything the words said.
+ *
+ * THE WORDS ARE GONE FROM THE GLASS. THEY ARE NOT GONE FROM THE PAGE.
+ *
+ * #gps-label is still in the DOM on every state change, moved off screen rather
+ * than deleted. A screen reader still announces "GPS OK" or "NO FIX", the
+ * button's aria-label still carries the state in words, and the gates still
+ * read the state as text instead of guessing at a colour.
+ *
+ * COLOUR IS STILL NOT THE ONLY SIGNAL, AND THAT IS NOT NEGOTIABLE.
+ *
+ * A satellite drawn identically in four colours would leave colour carrying the
+ * whole meaning, which fails for a deuteranope and fails in Florida sun. So the
+ * DRAWING changes with the state, not just its colour:
+ *
+ *     GPS OK   satellite with two signal arcs   solid ring
+ *     NO FIX   satellite, no arcs               dashed ring
+ *     NO GPS   satellite struck through         dotted ring
+ *     GPS ?    satellite with a question mark   plain ring
+ *
+ * Arcs present, arcs absent, a slash, and a question mark are four different
+ * silhouettes. Print the bar in greyscale and the state still reads.
+ */
+.bar-gps {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  border-radius: 50%;
+  justify-content: center;
+  background: #23303a;
+  color: #dbe6ee;
+  border-color: #56707f;
+}
+
+/*
+ * 24px of drawing inside a 36px circle.
+ *
+ * FIVE ATTEMPTS. THE PROPORTIONS ARE THE WHOLE JOB.
+ *
+ * Flat with small arrays read as spectacles. Flat with big arrays read as three
+ * boxes in a row. Tilted read as a bowtie. A dish alone read cleanly, but a
+ * dish is an antenna and this is meant to be a satellite.
+ *
+ * What works is the shape everybody already has in their head: two ELONGATED
+ * arrays, close to 1.7 to 1, on short booms either side of a small square bus,
+ * the whole assembly on a 40 degree diagonal, with a solid dish beneath the bus
+ * and the signal arcs coming off the dish rather than the body.
+ *
+ * The diagonal does more work than any single part. Laid flat this same
+ * geometry reads as furniture. On the diagonal it reads as orbit.
+ *
+ * The arcs also earn their keep twice: they are the drawing's signal, and they
+ * are the state mark. Present means a fix. Absent means none.
+ *
+ * Drawn here rather than lifted from an icon set, so no licence rides along
+ * into the classroom image.
+ */
+.gps-icon {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+.gps-icon .gps-sat,
+.gps-icon .gps-waves,
+.gps-icon .gps-slash {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.gps-icon .gps-slash { stroke-width: 3; }
+/* The dish is a solid mass, so it still reads when the outlines get thin. */
+.gps-icon .gps-dish { fill: currentColor; }
+.gps-icon .gps-quest {
+  fill: currentColor;
+  font-size: 9px;
+  font-weight: 800;
+  font-family: inherit;
+}
+
+/* Every state-specific mark is hidden until its state asks for it. */
+.gps-icon .gps-waves,
+.gps-icon .gps-slash,
+.gps-icon .gps-quest { display: none; }
+
+.bar-gps[data-gps-state="green"] .gps-waves { display: block; }
+.bar-gps[data-gps-state="red"]   .gps-slash { display: block; }
+.bar-gps[data-gps-state="grey"]  .gps-quest { display: block; }
+
+/*
+ * Both labels are read, never seen. Not display:none, which would take them
+ * away from a screen reader as well as from the eye. The rule is up with
+ * .bar-power, because the two controls share it.
+ */
+
+/*
+ * Measured against the bar ink #052a30, not guessed.
+ *   green ink #063d1c on #7fe3a4 is 8.9 to 1
+ *   amber ink #3a2600 on #ffc247 is 8.6 to 1
+ *   red   ink #ffffff on #b3261e is 6.1 to 1
+ */
+.bar-gps[data-gps-state="green"] {
+  background: #7fe3a4;
+  color: #063d1c;
+  border-color: #ffffff;
+}
+.bar-gps[data-gps-state="amber"] {
+  background: #ffc247;
+  color: #3a2600;
+  border-color: #ffffff;
+  border-style: dashed;
+}
+.bar-gps[data-gps-state="red"] {
+  background: #b3261e;
+  color: #ffffff;
+  border-color: #ffffff;
+  border-style: dotted;
+}
+.bar-gps[data-gps-state="grey"] {
+  background: #46525c;
+  color: #e6edf2;
+  border-color: #8d9aa4;
+}
+.bar-gps:focus-visible { outline: 3px solid #ffffff; outline-offset: 2px; }
+
+.gps-hidden { display: none; }
+
+.gps-card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.gps-card th {
+  text-align: left;
+  padding: 0.3rem 0.6rem 0.3rem 0;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: top;
+}
+.gps-card td {
+  padding: 0.3rem 0;
+  vertical-align: top;
+}
+.gps-card tr + tr th,
+.gps-card tr + tr td { border-top: 1px solid var(--line); }
+
+.gps-simulated {
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.7rem;
+  background: var(--sim-bg);
+  color: var(--sim-ink);
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
 
 /* The content area fills what the bar leaves, and never more. */
 .shell {
